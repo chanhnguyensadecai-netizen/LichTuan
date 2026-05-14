@@ -1,0 +1,67 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User account information and roles",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "fullName": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "office", "leader", "viewer"] },
+        "position": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "role"]
+    },
+    "Schedule": {
+      "title": "Work Schedule",
+      "description": "Information about a meeting or task",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "location": { "type": "string" },
+        "host": { "type": "string" },
+        "participants": { "type": "string" },
+        "type": { "type": "string", "enum": ["meeting", "fieldwork", "event", "other"] },
+        "priority": { "type": "string", "enum": ["low", "medium", "high"] },
+        "notes": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] }
+      },
+      "required": ["title", "date", "startTime", "type", "priority", "status"]
+    },
+    "Settings": {
+      "title": "System Settings",
+      "description": "Global application configuration",
+      "type": "object",
+      "properties": {
+        "orgName": { "type": "string" },
+        "address": { "type": "string" },
+        "emailOnNew": { "type": "boolean" },
+        "remindBefore30m": { "type": "boolean" },
+        "weeklyReport": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "firestore": {
+    "users": {
+      "schema": "User",
+      "description": "Registered users and their permissions"
+    },
+    "schedules": {
+      "schema": "Schedule",
+      "description": "Centralized work schedules"
+    },
+    "settings": {
+      "schema": "Settings",
+      "description": "Global system configuration"
+    }
+  }
+}

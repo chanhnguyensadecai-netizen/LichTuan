@@ -1,0 +1,86 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function getUserData() {
+      let userPath = /databases/$(database)/documents/users/$(request.auth.uid);
+      return exists(userPath) ? get(userPath).data : {"role": "viewer"};
+    }
+
+    function hasRole(roles) {
+      return isSignedIn() && getUserData().role in roles;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function isValidUser(data) {
+      return data.email is string && data.email.size() <= 100
+          && data.role in ['admin', 'office', 'leader', 'viewer']
+          && (data.fullName == null || (data.fullName is string && data.fullName.size() <= 100))
+          && (data.position == null || (data.position is string && data.position.size() <= 100));
+    }
+
+    function isValidSchedule(data) {
+      return data.title is string && data.title.size() <= 1000
+          && data.date is string && data.date.size() <= 20
+          && data.startTime is string && data.startTime.size() <= 10
+          && data.type in ['meeting', 'fieldwork', 'event', 'other']
+          && data.priority in ['low', 'medium', 'high']
+          && data.status in ['pending', 'approved', 'rejected']
+          && data.createdBy is string
+          && data.createdAt is string
+          && data.updatedAt is string;
+    }
+
+    // User profiles
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && (isOwner(userId) || hasRole(['admin'])) && isValidId(userId) && isValidUser(incoming());
+      allow update: if isSignedIn() && (isOwner(userId) || hasRole(['admin'])) && isValidId(userId) && isValidUser(incoming());
+      allow delete: if hasRole(['admin']) && isValidId(userId);
+    }
+
+    // Schedules
+    match /schedules/{scheduleId} {
+      allow read: if true;
+      allow create: if hasRole(['admin', 'office', 'leader']) 
+                    && isValidId(scheduleId) 
+                    && isValidSchedule(incoming())
+                    && incoming().createdBy == request.auth.uid;
+      allow update: if hasRole(['admin', 'office', 'leader']) 
+                    && isValidId(scheduleId) 
+                    && isValidSchedule(incoming())
+                    && (incoming().status != 'approved' || hasRole(['admin', 'office']));
+      allow delete: if hasRole(['admin', 'office', 'leader']);
+    }
+
+    // Settings
+    match /settings/system_config {
+      allow read: if true;
+    }
+
+    match /settings/{docId} {
+      allow read: if isSignedIn();
+      allow write: if hasRole(['admin']);
+    }
+  }
+}
