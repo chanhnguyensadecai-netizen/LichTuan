@@ -1,5 +1,4 @@
-import React, { useRef } from 'react';
-import { useReactToPrint } from 'react-to-print';
+import React, { useRef, useCallback } from 'react';
 import { Schedule } from '../types';
 import { 
   format, startOfWeek, addDays, parseISO, isSameDay, startOfToday,
@@ -11,104 +10,6 @@ interface WeeklyViewProps {
   schedules: Schedule[];
   orgName?: string;
 }
-
-// Component chỉ chứa nội dung in - tách riêng để react-to-print hoạt động đúng
-const PrintContent = React.forwardRef<HTMLDivElement, {
-  weekDays: Date[];
-  orgName?: string;
-  getSchedulesForDay: (day: Date) => any[];
-}>(({ weekDays, orgName, getSchedulesForDay }, ref) => (
-  <div ref={ref} style={{ padding: '10mm', fontFamily: 'Be Vietnam Pro, sans-serif', background: 'white' }}>
-    <style>{`
-      @page { size: A4 landscape; margin: 0; }
-      @media print {
-        body { margin: 0; }
-        table { border-collapse: collapse; width: 100%; font-size: 10pt; }
-        th, td { border: 2px solid black; padding: 4px 6px; vertical-align: top; }
-        thead { display: table-header-group; }
-        tr { page-break-inside: avoid; }
-        table { page-break-inside: auto; }
-      }
-    `}</style>
-
-    {/* Header */}
-    <div style={{ textAlign: 'center', marginBottom: '12px' }}>
-      <p style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', margin: '0', color: '#333' }}>
-        Đảng Bộ Tỉnh Đồng Tháp
-      </p>
-      <p style={{ fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase', margin: '2px 0', color: '#da251d' }}>
-        {orgName || 'Đảng ủy xã Tân Dương'}
-      </p>
-      <h1 style={{ fontSize: '18px', fontWeight: 'bold', textTransform: 'uppercase', margin: '8px 0 4px' }}>
-        Lịch công tác tuần
-      </h1>
-      <p style={{ fontSize: '11px', color: '#555', margin: '0', textTransform: 'uppercase' }}>
-        (Từ ngày {format(weekDays[0], 'dd/MM/yyyy')} đến ngày {format(weekDays[6], 'dd/MM/yyyy')})
-      </p>
-    </div>
-
-    {/* Bảng */}
-    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10pt' }}>
-      <thead>
-        <tr style={{ backgroundColor: '#f5f5f5' }}>
-          <th style={{ border: '2px solid black', padding: '6px', width: '90px', textAlign: 'center', textTransform: 'uppercase', fontWeight: 'bold' }}>Thứ, ngày, tháng</th>
-          <th style={{ border: '2px solid black', padding: '6px', textAlign: 'center', textTransform: 'uppercase', fontWeight: 'bold' }}>Nội dung</th>
-          <th style={{ border: '2px solid black', padding: '6px', width: '190px', textAlign: 'center', textTransform: 'uppercase', fontWeight: 'bold' }}>Thời gian, địa điểm</th>
-          <th style={{ border: '2px solid black', padding: '6px', width: '190px', textAlign: 'center', textTransform: 'uppercase', fontWeight: 'bold' }}>Thường trực Đảng ủy</th>
-          <th style={{ border: '2px solid black', padding: '6px', width: '140px', textAlign: 'center', textTransform: 'uppercase', fontWeight: 'bold' }}>Thành phần</th>
-        </tr>
-      </thead>
-      <tbody>
-        {weekDays.map((day) => {
-          const daySchedules = getSchedulesForDay(day);
-          const dayName = format(day, 'EEEE', { locale: vi });
-          const dateStr = format(day, 'd.M.yyyy');
-
-          if (daySchedules.length === 0) {
-            return (
-              <tr key={day.toISOString()}>
-                <td style={{ border: '2px solid black', padding: '6px', textAlign: 'center', fontWeight: 'bold', lineHeight: '1.4' }}>
-                  <div style={{ textTransform: 'capitalize' }}>{dayName}</div>
-                  <div>{dateStr}</div>
-                </td>
-                <td colSpan={4} style={{ border: '2px solid black', padding: '10px', textAlign: 'center', color: '#aaa', fontStyle: 'italic', fontWeight: 'bold', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '2px' }}>
-                  --- Nghỉ ---
-                </td>
-              </tr>
-            );
-          }
-
-          return daySchedules.map((s: any, index: number) => (
-            <tr key={s.id}>
-              {index === 0 && (
-                <td rowSpan={daySchedules.length} style={{ border: '2px solid black', padding: '6px', textAlign: 'center', verticalAlign: 'middle', fontWeight: 'bold', lineHeight: '1.4' }}>
-                  <div style={{ textTransform: 'capitalize' }}>{dayName}</div>
-                  <div>{dateStr}</div>
-                </td>
-              )}
-              <td style={{ border: '2px solid black', padding: '5px 6px' }}>
-                <span>- </span><span style={{ fontWeight: '500' }}>{s.title}</span>
-              </td>
-              <td style={{ border: '2px solid black', padding: '5px 6px' }}>
-                - {s.startTime.replace(':', 'h')}, {s.location}
-              </td>
-              <td style={{ border: '2px solid black', padding: '5px 6px' }}>
-                {s.host.split(/[,;\n]/).filter((h: string) => h.trim()).map((part: string, i: number) => (
-                  <div key={i}>- {part.trim()}</div>
-                ))}
-              </td>
-              <td style={{ border: '2px solid black', padding: '5px 6px', fontSize: '9.5pt' }}>
-                {s.participants && <span>- {s.participants}</span>}
-              </td>
-            </tr>
-          ));
-        })}
-      </tbody>
-    </table>
-  </div>
-));
-
-PrintContent.displayName = 'PrintContent';
 
 export default function WeeklyView({ schedules, orgName }: WeeklyViewProps) {
   const [currentWeekStart, setCurrentWeekStart] = React.useState(
@@ -128,19 +29,51 @@ export default function WeeklyView({ schedules, orgName }: WeeklyViewProps) {
   const prevWeek = () => setCurrentWeekStart(addDays(currentWeekStart, -7));
   const resetToCurrent = () => setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
 
-  const handlePrint = useReactToPrint({
-    contentRef: printRef,
-    documentTitle: `Lich_Cong_Tac_Tuan_${format(currentWeekStart, 'dd-MM-yyyy')}`,
-    pageStyle: `
-      @page { size: A4 landscape; margin: 0; }
-      @media print {
-        html, body { height: auto; }
-        table { page-break-inside: auto; }
-        thead { display: table-header-group; }
-        tr { page-break-inside: avoid; page-break-after: auto; }
-      }
-    `,
-  });
+  const handlePrint = useCallback(() => {
+    const content = printRef.current;
+    if (!content) return;
+
+    const printWindow = window.open('', '_blank', 'width=1200,height=900');
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Lịch Công Tác Tuần</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap');
+            @page { size: A4 landscape; margin: 10mm 8mm; }
+            * { box-sizing: border-box; margin: 0; padding: 0; }
+            body { font-family: 'Be Vietnam Pro', sans-serif; background: white; }
+            .header { text-align: center; margin-bottom: 12px; }
+            .header .org-top { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #333; }
+            .header .org-main { font-size: 13px; font-weight: 700; text-transform: uppercase; color: #da251d; margin-top: 2px; }
+            .header h1 { font-size: 18px; font-weight: 700; text-transform: uppercase; margin: 8px 0 4px; }
+            .header .dates { font-size: 11px; color: #555; text-transform: uppercase; }
+            table { width: 100%; border-collapse: collapse; font-size: 10pt; page-break-inside: auto; }
+            thead { display: table-header-group; }
+            th { border: 2px solid black; padding: 5px 6px; text-align: center; font-weight: 700; text-transform: uppercase; background: #f5f5f5; }
+            td { border: 2px solid black; padding: 4px 6px; vertical-align: top; }
+            tr { page-break-inside: avoid; page-break-after: auto; }
+            .day-cell { text-align: center; vertical-align: middle; font-weight: 700; line-height: 1.4; }
+            .day-cell .day-name { text-transform: capitalize; }
+            .empty-row td { text-align: center; color: #aaa; font-style: italic; font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: 2px; padding: 10px; }
+          </style>
+        </head>
+        <body>
+          ${content.innerHTML}
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 800);
+  }, []);
 
   const handleShareZalo = async () => {
     let content = `LỊCH CÔNG TÁC TUẦN ${format(currentWeekStart, 'ww')} (${format(weekDays[0], 'dd/MM')} - ${format(weekDays[6], 'dd/MM')})\n${orgName || 'Đảng ủy xã Tân Dương'}\n\n`;
@@ -165,6 +98,73 @@ export default function WeeklyView({ schedules, orgName }: WeeklyViewProps) {
     }
   };
 
+  const tableRows = weekDays.map((day) => {
+    const daySchedules = getSchedulesForDay(day);
+    const isTodayActive = isSameDay(day, startOfToday());
+    const dayName = format(day, 'EEEE', { locale: vi });
+    const dateStr = format(day, 'd.M.yyyy');
+
+    if (daySchedules.length === 0) {
+      return (
+        <tr key={day.toISOString()} className="empty-row">
+          <td className="day-cell border-2 border-black p-2 text-center align-middle font-bold">
+            <div className="day-name capitalize">{dayName}</div>
+            <div>{dateStr}</div>
+          </td>
+          <td colSpan={4} className="border-2 border-black p-3 text-center text-gray-400 italic text-xs font-bold uppercase tracking-widest">
+            --- Nghỉ ---
+          </td>
+        </tr>
+      );
+    }
+
+    return daySchedules.map((s: any, index: number) => (
+      <tr key={s.id} className={isTodayActive ? 'bg-yellow-50' : ''}>
+        {index === 0 && (
+          <td rowSpan={daySchedules.length} className="day-cell border-2 border-black p-2 text-center align-middle font-bold">
+            <div className="day-name capitalize">{dayName}</div>
+            <div>{dateStr}</div>
+          </td>
+        )}
+        <td className="border-2 border-black p-2 align-top">- <span className="font-medium">{s.title}</span></td>
+        <td className="border-2 border-black p-2 align-top">- {s.startTime.replace(':', 'h')}, {s.location}</td>
+        <td className="border-2 border-black p-2 align-top">
+          {s.host.split(/[,;\n]/).filter((h: string) => h.trim()).map((part: string, i: number) => (
+            <div key={i}>- {part.trim()}</div>
+          ))}
+        </td>
+        <td className="border-2 border-black p-2 align-top text-[11px]">
+          {s.participants && `- ${s.participants}`}
+        </td>
+      </tr>
+    ));
+  });
+
+  const tableContent = (
+    <>
+      <div className="header">
+        <div className="org-top">Đảng Bộ Tỉnh Đồng Tháp</div>
+        <div className="org-main">{orgName || 'Đảng ủy xã Tân Dương'}</div>
+        <h1>Lịch công tác tuần</h1>
+        <div className="dates">
+          (Từ ngày {format(weekDays[0], 'dd/MM/yyyy')} đến ngày {format(weekDays[6], 'dd/MM/yyyy')})
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style={{width:'90px'}}>Thứ, ngày, tháng</th>
+            <th>Nội dung</th>
+            <th style={{width:'190px'}}>Thời gian, địa điểm</th>
+            <th style={{width:'190px'}}>Thường trực Đảng ủy</th>
+            <th style={{width:'140px'}}>Thành phần</th>
+          </tr>
+        </thead>
+        <tbody>{tableRows}</tbody>
+      </table>
+    </>
+  );
+
   return (
     <div className="space-y-4">
       {/* Thanh điều hướng */}
@@ -187,24 +187,20 @@ export default function WeeklyView({ schedules, orgName }: WeeklyViewProps) {
               <ChevronRight className="w-4 h-4 text-gray-600" />
             </button>
           </div>
-          <button
-            onClick={handleShareZalo}
+          <button onClick={handleShareZalo}
             className={`flex items-center gap-2 px-4 py-2 border rounded text-xs font-bold shadow-sm transition-all cursor-pointer ${
               copied ? 'bg-green-50 text-green-700 border-green-200' : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
-            }`}
-          >
+            }`}>
             <Share2 className="w-4 h-4" /> {copied ? 'Đã sao chép!' : 'Gửi Zalo'}
           </button>
-          <button
-            onClick={() => handlePrint()}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 rounded text-xs font-bold shadow-sm hover:bg-gray-200 cursor-pointer"
-          >
+          <button onClick={handlePrint}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 rounded text-xs font-bold shadow-sm hover:bg-gray-200 cursor-pointer">
             <Printer className="w-4 h-4" /> Xuất PDF
           </button>
         </div>
       </div>
 
-      {/* Xem trên web */}
+      {/* Hiển thị trên web */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
         <div className="text-center mb-4">
           <p className="text-[11px] font-bold uppercase text-gray-700">Đảng Bộ Tỉnh Đồng Tháp</p>
@@ -224,47 +220,13 @@ export default function WeeklyView({ schedules, orgName }: WeeklyViewProps) {
               <th className="border-2 border-black p-2 w-[140px] text-center uppercase font-bold">Thành phần</th>
             </tr>
           </thead>
-          <tbody>
-            {weekDays.map((day) => {
-              const daySchedules = getSchedulesForDay(day);
-              const isTodayActive = isSameDay(day, startOfToday());
-              const dayName = format(day, 'EEEE', { locale: vi });
-              const dateStr = format(day, 'd.M.yyyy');
-              if (daySchedules.length === 0) {
-                return (
-                  <tr key={day.toISOString()}>
-                    <td className="border-2 border-black p-2 text-center align-middle font-bold leading-tight">
-                      <div className="capitalize">{dayName}</div><div>{dateStr}</div>
-                    </td>
-                    <td colSpan={4} className="border-2 border-black p-3 text-center text-gray-400 italic text-xs font-bold uppercase tracking-widest">--- Nghỉ ---</td>
-                  </tr>
-                );
-              }
-              return daySchedules.map((s, index) => (
-                <tr key={s.id} className={isTodayActive ? 'bg-yellow-50' : ''}>
-                  {index === 0 && (
-                    <td rowSpan={daySchedules.length} className="border-2 border-black p-2 text-center align-middle font-bold leading-tight">
-                      <div className="capitalize">{dayName}</div><div>{dateStr}</div>
-                    </td>
-                  )}
-                  <td className="border-2 border-black p-2 align-top"><span>- </span><span className="font-medium">{s.title}</span></td>
-                  <td className="border-2 border-black p-2 align-top">- {s.startTime.replace(':', 'h')}, {s.location}</td>
-                  <td className="border-2 border-black p-2 align-top">
-                    {s.host.split(/[,;\n]/).filter((h: string) => h.trim()).map((part: string, i: number) => (
-                      <div key={i}>- {part.trim()}</div>
-                    ))}
-                  </td>
-                  <td className="border-2 border-black p-2 align-top text-[11px]">{s.participants && `- ${s.participants}`}</td>
-                </tr>
-              ));
-            })}
-          </tbody>
+          <tbody>{tableRows}</tbody>
         </table>
       </div>
 
-      {/* Vùng in ẩn - chỉ dùng khi in */}
-      <div style={{ display: 'none' }}>
-        <PrintContent ref={printRef} weekDays={weekDays} orgName={orgName} getSchedulesForDay={getSchedulesForDay} />
+      {/* Vùng in ẩn */}
+      <div ref={printRef} style={{display:'none'}}>
+        {tableContent}
       </div>
     </div>
   );
