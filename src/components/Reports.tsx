@@ -145,7 +145,7 @@ export default function Reports({ schedules }: ReportsProps) {
       // Fallback: download file
       const a = document.createElement('a');
       a.href = url;
-      a.download = \`BaoCao_CongTac_\${format(new Date(), 'ddMMyyyy')}.html\`;
+      a.download = 'BaoCao_CongTac_' + format(new Date(), 'ddMMyyyy') + '.html';
       a.click();
     }
     setTimeout(() => URL.revokeObjectURL(url), 10000);
