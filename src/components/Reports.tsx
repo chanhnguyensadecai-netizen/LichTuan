@@ -63,87 +63,93 @@ export default function Reports({ schedules }: ReportsProps) {
   }, [filteredSchedules]);
 
   const handlePrint = useCallback(() => {
-    // Inject print styles and trigger print directly
-    const existingStyle = document.getElementById('report-print-style');
-    if (existingStyle) existingStyle.remove();
+    const filteredData = filteredSchedules;
+    const startStr = format(dateRange.start, 'dd/MM/yyyy');
+    const endStr = format(dateRange.end, 'dd/MM/yyyy');
+    const topHost = hostData[0]?.name || 'N/A';
+    const topType = [...typeData].sort((a,b) => b.value - a.value)[0]?.name || 'N/A';
 
-    const style = document.createElement('style');
-    style.id = 'report-print-style';
-    style.innerHTML = `
-      @media print {
+    const rows = filteredData.map((s, i) => `
+      <tr>
+        <td style="text-align:center">${i+1}</td>
+        <td>${format(parseISO(s.date), 'dd/MM/yyyy')}<br/><small>${s.startTime}</small></td>
+        <td><strong>${s.title}</strong></td>
+        <td>${s.host}</td>
+        <td>${s.location}</td>
+      </tr>
+    `).join('');
+
+    const html = `<!DOCTYPE html><html><head>
+      <meta charset="UTF-8">
+      <title>Báo Cáo Thống Kê Công Tác</title>
+      <style>
         @page { size: A4 portrait; margin: 15mm 12mm; }
-        html body { margin: 0; padding: 0; }
-        html body > * { display: none !important; visibility: hidden !important; }
-        html body #root { display: block !important; visibility: visible !important; }
-        html body #root > * { display: none !important; visibility: hidden !important; }
-        html body #root #report-print-area {
-          display: block !important;
-          visibility: visible !important;
-          position: static !important;
-          width: 100% !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          background: white !important;
-        }
-        html body #root #report-print-area * {
-          display: revert !important;
-          visibility: visible !important;
-        }
-        table { width: 100% !important; border-collapse: collapse !important; font-size: 10px !important; page-break-inside: auto !important; }
-        thead { display: table-header-group !important; }
-        tr { page-break-inside: avoid !important; }
-      }
-    `;
-    document.head.appendChild(style);
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: Arial, sans-serif; color: #1e293b; font-size: 11px; }
+        .header { text-align: center; margin-bottom: 16px; }
+        .header h1 { font-size: 16px; font-weight: 800; text-transform: uppercase; margin-bottom: 4px; }
+        .header p { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
+        .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+        .stat { border: 1px solid #e2e8f0; padding: 10px; border-radius: 6px; text-align: center; }
+        .stat .label { font-size: 8px; text-transform: uppercase; font-weight: 700; color: #94a3b8; letter-spacing: 1px; margin-bottom: 4px; }
+        .stat .val { font-size: 20px; font-weight: 800; }
+        .stat .val.sm { font-size: 12px; }
+        h3 { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; border-bottom: 2px solid #1e293b; padding-bottom: 5px; margin-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; font-size: 9px; margin-bottom: 16px; page-break-inside: auto; }
+        thead { display: table-header-group; }
+        th { border: 1px solid #cbd5e1; padding: 5px 7px; background: #f8fafc; font-weight: 800; text-transform: uppercase; font-size: 8px; color: #64748b; text-align: left; }
+        td { border: 1px solid #e2e8f0; padding: 4px 7px; vertical-align: top; }
+        tr { page-break-inside: avoid; }
+        tr:nth-child(even) td { background: #f8fafc; }
+        .sig { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 24px; }
+        .sig-box { text-align: center; }
+        .sig-box .title { font-size: 10px; font-weight: 700; text-transform: uppercase; margin-bottom: 40px; }
+        .sig-box .name { font-size: 10px; font-weight: 700; text-transform: uppercase; }
+        .stt { text-align: center; width: 28px; }
+      </style>
+    </head><body>
+      <div class="header">
+        <h1>Báo Cáo Thống Kê Công Tác</h1>
+        <p>Thời gian: ${startStr} - ${endStr}</p>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="label">Tổng số công tác</div><div class="val">${filteredData.length}</div></div>
+        <div class="stat"><div class="label">Phân loại phổ biến</div><div class="val sm">${topType}</div></div>
+        <div class="stat"><div class="label">Chủ trì nhiều nhất</div><div class="val sm">${topHost}</div></div>
+      </div>
+      <h3>Chi tiết biểu kê công tác</h3>
+      <table>
+        <thead><tr>
+          <th class="stt">STT</th>
+          <th style="width:80px">Thời gian</th>
+          <th>Nội dung</th>
+          <th style="width:120px">Chủ trì</th>
+          <th style="width:120px">Địa điểm</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div class="sig">
+        <div class="sig-box"><div class="title">Người lập biểu</div><div class="name">${format(new Date(), "'Ngày' dd 'tháng' MM 'năm' yyyy")}</div></div>
+        <div class="sig-box"><div class="title">Thường trực Đảng ủy</div><div class="name">(Ký tên & đóng dấu)</div></div>
+      </div>
+    </body></html>`;
 
-    const printArea = document.getElementById('report-print-area');
-    if (printArea) printArea.style.display = 'block';
-
-    window.print();
-
-    setTimeout(() => {
-      if (printArea) printArea.style.display = 'none';
-      style.remove();
-    }, 1000);
-    return; // Skip old implementation
-    const content = printRef.current;
-    if (!content) return;
-    const printWindow = window.open('', '_blank', 'width=900,height=1200');
-    if (!printWindow) return;
-    printWindow.document.write(`
-      <!DOCTYPE html><html><head>
-        <meta charset="UTF-8">
-        <title>Báo Cáo Thống Kê Công Tác</title>
-        <style>
-          @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap');
-          @page { size: A4 portrait; margin: 15mm 12mm; }
-          * { box-sizing: border-box; margin: 0; padding: 0; }
-          body { font-family: 'Be Vietnam Pro', sans-serif; background: white; color: #1e293b; }
-          .header { text-align: center; margin-bottom: 20px; }
-          .header h1 { font-size: 18px; font-weight: 800; text-transform: uppercase; margin-bottom: 4px; }
-          .header p { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
-          .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
-          .stat-box { border: 1px solid #e2e8f0; padding: 12px; border-radius: 8px; text-align: center; }
-          .stat-box .label { font-size: 9px; text-transform: uppercase; font-weight: 700; color: #94a3b8; letter-spacing: 1px; margin-bottom: 4px; }
-          .stat-box .value { font-size: 22px; font-weight: 800; color: #1e293b; }
-          .stat-box .value.sm { font-size: 14px; }
-          h3 { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; border-bottom: 2px solid #1e293b; padding-bottom: 6px; margin-bottom: 12px; }
-          table { width: 100%; border-collapse: collapse; font-size: 10px; margin-bottom: 20px; }
-          th { border: 1px solid #cbd5e1; padding: 6px 8px; background: #f8fafc; font-weight: 800; text-transform: uppercase; font-size: 9px; color: #64748b; text-align: left; }
-          td { border: 1px solid #e2e8f0; padding: 5px 8px; vertical-align: top; }
-          tr:nth-child(even) td { background: #f8fafc; }
-          .signature { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 30px; }
-          .sig-box { text-align: center; }
-          .sig-box .title { font-size: 11px; font-weight: 700; text-transform: uppercase; margin-bottom: 50px; }
-          .sig-box .name { font-size: 11px; font-weight: 700; text-transform: uppercase; }
-          .stt { text-align: center; width: 30px; }
-        </style>
-      </head><body>${content.innerHTML}</body></html>
-    `);
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => { printWindow.print(); printWindow.close(); }, 800);
-  }, []);
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const printWindow = window.open(url, '_blank');
+    if (printWindow) {
+      printWindow.onload = () => {
+        setTimeout(() => { printWindow.print(); }, 500);
+      };
+    } else {
+      // Fallback: download file
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = \`BaoCao_CongTac_\${format(new Date(), 'ddMMyyyy')}.html\`;
+      a.click();
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }, [filteredSchedules, dateRange, hostData, typeData]);
 
   const exportToExcel = () => {
     const data = filteredSchedules.map(s => ({
