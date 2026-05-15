@@ -134,21 +134,16 @@ export default function Reports({ schedules }: ReportsProps) {
       </div>
     </body></html>`;
 
+    // Tải file HTML về máy để mở và in
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
-    const printWindow = window.open(url, '_blank');
-    if (printWindow) {
-      printWindow.onload = () => {
-        setTimeout(() => { printWindow.print(); }, 500);
-      };
-    } else {
-      // Fallback: download file
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'BaoCao_CongTac_' + format(new Date(), 'ddMMyyyy') + '.html';
-      a.click();
-    }
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'BaoCao_CongTac_' + format(new Date(), 'ddMMyyyy') + '.html';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
   }, [filteredSchedules, dateRange, hostData, typeData]);
 
   const exportToExcel = () => {
