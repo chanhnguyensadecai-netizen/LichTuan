@@ -69,7 +69,7 @@ service cloud.firestore {
       allow update: if hasRole(['admin', 'office', 'leader']) 
                     && isValidId(scheduleId) 
                     && isValidSchedule(incoming())
-                    && (incoming().status != 'approved' || hasRole(['admin', 'office']));
+                    && (incoming().status != 'approved' || hasRole(['admin', 'office', 'leader']));
       allow delete: if hasRole(['admin', 'office', 'leader']);
     }
 
