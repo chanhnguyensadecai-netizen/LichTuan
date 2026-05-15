@@ -131,7 +131,14 @@ export default function ScheduleForm({ onSuccess, onCancel, initialData, profile
       };
 
       if (initialData) {
-        await updateDoc(doc(db, 'schedules', initialData.id), payload);
+        // Khi sửa: giữ nguyên status hiện tại, không thay đổi người tạo
+        const updatePayload = {
+          ...payload,
+          status: initialData.status, // giữ nguyên trạng thái
+          createdBy: initialData.createdBy, // giữ nguyên người tạo
+          createdAt: initialData.createdAt, // giữ nguyên ngày tạo
+        };
+        await updateDoc(doc(db, 'schedules', initialData.id), updatePayload);
       } else {
         const finalStatus = ['admin', 'office', 'leader'].includes(profile.role) ? 'approved' : 'pending';
         await addDoc(collection(db, 'schedules'), {
