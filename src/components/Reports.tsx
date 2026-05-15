@@ -72,12 +72,26 @@ export default function Reports({ schedules }: ReportsProps) {
     style.innerHTML = `
       @media print {
         @page { size: A4 portrait; margin: 15mm 12mm; }
-        body > * { display: none !important; }
-        #report-print-area { display: block !important; position: fixed; top: 0; left: 0; width: 100%; background: white; padding: 0; }
-        #report-print-area * { display: revert !important; }
-        table { width: 100%; border-collapse: collapse; font-size: 10px; page-break-inside: auto; }
-        thead { display: table-header-group; }
-        tr { page-break-inside: avoid; }
+        html body { margin: 0; padding: 0; }
+        html body > * { display: none !important; visibility: hidden !important; }
+        html body #root { display: block !important; visibility: visible !important; }
+        html body #root > * { display: none !important; visibility: hidden !important; }
+        html body #root #report-print-area {
+          display: block !important;
+          visibility: visible !important;
+          position: static !important;
+          width: 100% !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          background: white !important;
+        }
+        html body #root #report-print-area * {
+          display: revert !important;
+          visibility: visible !important;
+        }
+        table { width: 100% !important; border-collapse: collapse !important; font-size: 10px !important; page-break-inside: auto !important; }
+        thead { display: table-header-group !important; }
+        tr { page-break-inside: avoid !important; }
       }
     `;
     document.head.appendChild(style);
