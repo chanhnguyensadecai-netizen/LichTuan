@@ -63,6 +63,35 @@ export default function Reports({ schedules }: ReportsProps) {
   }, [filteredSchedules]);
 
   const handlePrint = useCallback(() => {
+    // Inject print styles and trigger print directly
+    const existingStyle = document.getElementById('report-print-style');
+    if (existingStyle) existingStyle.remove();
+
+    const style = document.createElement('style');
+    style.id = 'report-print-style';
+    style.innerHTML = `
+      @media print {
+        @page { size: A4 portrait; margin: 15mm 12mm; }
+        body > * { display: none !important; }
+        #report-print-area { display: block !important; position: fixed; top: 0; left: 0; width: 100%; background: white; padding: 0; }
+        #report-print-area * { display: revert !important; }
+        table { width: 100%; border-collapse: collapse; font-size: 10px; page-break-inside: auto; }
+        thead { display: table-header-group; }
+        tr { page-break-inside: avoid; }
+      }
+    `;
+    document.head.appendChild(style);
+
+    const printArea = document.getElementById('report-print-area');
+    if (printArea) printArea.style.display = 'block';
+
+    window.print();
+
+    setTimeout(() => {
+      if (printArea) printArea.style.display = 'none';
+      style.remove();
+    }, 1000);
+    return; // Skip old implementation
     const content = printRef.current;
     if (!content) return;
     const printWindow = window.open('', '_blank', 'width=900,height=1200');
@@ -274,7 +303,7 @@ export default function Reports({ schedules }: ReportsProps) {
       )}
 
       {/* Vùng in ẩn */}
-      <div ref={printRef} style={{ display: 'none' }}>
+      <div id="report-print-area" ref={printRef} style={{ display: 'none' }}>
         <div className="header">
           <h1>Báo Cáo Thống Kê Công Tác</h1>
           <p>Thời gian: {format(dateRange.start, 'dd/MM/yyyy')} - {format(dateRange.end, 'dd/MM/yyyy')}</p>
