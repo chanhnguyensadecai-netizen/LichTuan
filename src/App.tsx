@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc, setDoc, getDocs, collection, query, limit, where, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, getDocs, collection, query, limit, where, deleteDoc } from 'firebase/firestore';
 import { UserProfile, UserRole } from './types';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
@@ -61,13 +61,38 @@ export default function App() {
 
           if (docSnap.exists()) {
             const data = docSnap.data();
-            // Force admin for the main user email
-            const isOwner = firebaseUser.email?.toLowerCase() === 'chanhnguyensadecai@gmail.com';
-            if (isOwner && data.role !== 'admin') {
+            const normalizedEmail = firebaseUser.email?.toLowerCase().trim() || '';
+            const isOwner = normalizedEmail === 'chanhnguyensadecai@gmail.com';
+
+            // Luôn kiểm tra xem có pre-auth mới với email này không
+            // để cập nhật quyền nếu admin vừa thay đổi
+            const qPreAuth2 = query(collection(db, 'users'), where('email', '==', normalizedEmail), limit(2));
+            const preAuthSnap2 = await getDocs(qPreAuth2);
+            
+            // Tìm doc pre-auth (không phải doc của chính user này)
+            const preAuthDoc2 = preAuthSnap2.docs.find(d => d.id !== firebaseUser.uid);
+            
+            if (preAuthDoc2) {
+              // Có pre-auth mới → cập nhật quyền theo pre-auth
+              const preAuthData2 = preAuthDoc2.data();
+              const updatedProfile = {
+                ...data,
+                role: isOwner ? 'admin' : preAuthData2.role,
+                fullName: preAuthData2.fullName || data.fullName,
+                position: preAuthData2.position || data.position,
+                lastLogin: new Date().toISOString()
+              };
+              await setDoc(docRef, updatedProfile, { merge: true });
+              // Xóa doc pre-auth
+              try { await deleteDoc(doc(db, 'users', preAuthDoc2.id)); } catch {}
+              userProfile = { id: firebaseUser.uid, ...updatedProfile } as UserProfile;
+            } else if (isOwner && data.role !== 'admin') {
               const updatedProfile = { ...data, role: 'admin', position: 'Quản trị viên hệ thống' };
               await setDoc(docRef, updatedProfile, { merge: true });
               userProfile = { id: firebaseUser.uid, ...updatedProfile } as UserProfile;
             } else {
+              // Cập nhật lastLogin
+              await updateDoc(docRef, { lastLogin: new Date().toISOString() });
               userProfile = { id: firebaseUser.uid, ...data } as UserProfile;
             }
           } else {
