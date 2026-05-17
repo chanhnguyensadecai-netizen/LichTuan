@@ -1,10 +1,13 @@
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useEffect, useState } from 'react';
 import { Schedule } from '../types';
 import { 
   format, startOfWeek, addDays, parseISO, isSameDay, startOfToday,
 } from 'date-fns';
 import { vi } from 'date-fns/locale';
-import { Printer, ChevronLeft, ChevronRight, Share2 } from 'lucide-react';
+import { Printer, ChevronLeft, ChevronRight, Share2, Paperclip, ExternalLink } from 'lucide-react';
+import { db } from '../lib/firebase';
+import { collection, query, onSnapshot } from 'firebase/firestore';
+import { Attachment } from '../types';
 
 interface WeeklyViewProps {
   schedules: Schedule[];
@@ -20,6 +23,19 @@ export default function WeeklyView({ schedules, orgName }: WeeklyViewProps) {
   const isPrevWeek = weekOffset === -1;
   const isNextWeek = weekOffset === 1;
   const [copied, setCopied] = React.useState(false);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+
+  // Load tất cả attachments 1 lần
+  useEffect(() => {
+    const q = query(collection(db, 'attachments'));
+    const unsub = onSnapshot(q, (snap) => {
+      setAttachments(snap.docs.map(d => ({ id: d.id, ...d.data() } as Attachment)));
+    });
+    return () => unsub();
+  }, []);
+
+  const getAttachmentsForSchedule = (scheduleId: string) =>
+    attachments.filter(a => a.scheduleId === scheduleId);
   const printRef = useRef<HTMLDivElement>(null);
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(currentWeekStart, i));
@@ -130,7 +146,27 @@ export default function WeeklyView({ schedules, orgName }: WeeklyViewProps) {
             <div>{dateStr}</div>
           </td>
         )}
-        <td className="border-2 border-black p-2 align-top">- <span className="font-medium">{s.title}</span></td>
+        <td className="border-2 border-black p-2 align-top">
+                  <div>- <span className="font-medium">{s.title}</span></div>
+                  {getAttachmentsForSchedule(s.id).length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {getAttachmentsForSchedule(s.id).map(att => (
+                        <a
+                          key={att.id}
+                          href={att.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-600 border border-blue-200 rounded text-[10px] font-bold hover:bg-blue-100 transition-colors"
+                          title={att.name}
+                        >
+                          <Paperclip className="w-3 h-3 shrink-0" />
+                          <span className="truncate max-w-[120px]">{att.name}</span>
+                          <ExternalLink className="w-2.5 h-2.5 shrink-0" />
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </td>
         <td className="border-2 border-black p-2 align-top">- {s.startTime.replace(':', 'h')}, {s.location}</td>
         <td className="border-2 border-black p-2 align-top">
           {s.host.split(/[,;\n]/).filter((h: string) => h.trim()).map((part: string, i: number) => (
