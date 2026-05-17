@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import AttachmentManager from './AttachmentManager';
 import { Schedule, UserRole } from '../types';
 import { 
@@ -21,12 +21,14 @@ import {
    Upload,
   Loader2,
   Share2,
-  Paperclip
+  Paperclip,
+  ExternalLink
 } from 'lucide-react';
 import { TYPE_CONFIG, PRIORITY_CONFIG, STATUS_CONFIG } from '../constants';
 import { format, parseISO } from 'date-fns';
 import { vi } from 'date-fns/locale';
-import { deleteDoc, doc, updateDoc, collection, addDoc } from 'firebase/firestore';
+import { deleteDoc, doc, updateDoc, collection, addDoc, query, onSnapshot } from 'firebase/firestore';
+import { Attachment } from '../types';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { downloadExcelTemplate, parseExcelFile } from '../lib/excel';
 
@@ -46,6 +48,18 @@ export default function ScheduleList({ schedules, role, onEdit, onDuplicate, onA
   const [isImporting, setIsImporting] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [attachmentSchedule, setAttachmentSchedule] = useState<Schedule | null>(null);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+
+  useEffect(() => {
+    const q = query(collection(db, 'attachments'));
+    const unsub = onSnapshot(q, (snap) => {
+      setAttachments(snap.docs.map(d => ({ id: d.id, ...d.data() } as Attachment)));
+    });
+    return () => unsub();
+  }, []);
+
+  const getAttachmentsForSchedule = (scheduleId: string) =>
+    attachments.filter(a => a.scheduleId === scheduleId);
 
   const filtered = schedules.filter(s => {
     const matchesSearch = s.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -255,6 +269,24 @@ export default function ScheduleList({ schedules, role, onEdit, onDuplicate, onA
                           </span>
                         </div>
                         <p className="font-bold text-gray-800 leading-snug">{s.title}</p>
+                        {getAttachmentsForSchedule(s.id).length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {getAttachmentsForSchedule(s.id).map(att => (
+                              <a
+                                key={att.id}
+                                href={att.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-50 text-purple-600 border border-purple-200 rounded text-[10px] font-bold hover:bg-purple-100 transition-colors"
+                                title={att.name}
+                                onClick={e => e.stopPropagation()}
+                              >
+                                <Paperclip className="w-2.5 h-2.5 shrink-0" />
+                                <span className="truncate max-w-[100px]">{att.name}</span>
+                              </a>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4 border-r border-gray-100 italic text-gray-500">
