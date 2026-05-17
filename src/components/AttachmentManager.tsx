@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db, auth } from '../lib/firebase';
 import { collection, addDoc, deleteDoc, doc, onSnapshot, query, where } from 'firebase/firestore';
 import { Attachment, UserRole } from '../types';
-import { Link, Trash2, Download, ExternalLink, Plus, X, AlertCircle, Loader2, FileText, Paperclip } from 'lucide-react';
+import { Trash2, ExternalLink, Plus, X, AlertCircle, Loader2, Paperclip } from 'lucide-react';
 
 interface AttachmentManagerProps {
   scheduleId: string;
