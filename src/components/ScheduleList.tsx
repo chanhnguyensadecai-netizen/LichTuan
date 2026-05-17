@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import AttachmentManager from './AttachmentManager';
 import { Schedule, UserRole } from '../types';
 import { 
   Search, 
@@ -19,7 +20,8 @@ import {
   Download,
    Upload,
   Loader2,
-  Share2
+  Share2,
+  Paperclip
 } from 'lucide-react';
 import { TYPE_CONFIG, PRIORITY_CONFIG, STATUS_CONFIG } from '../constants';
 import { format, parseISO } from 'date-fns';
@@ -43,6 +45,7 @@ export default function ScheduleList({ schedules, role, onEdit, onDuplicate, onA
   const [showFilters, setShowFilters] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [attachmentSchedule, setAttachmentSchedule] = useState<Schedule | null>(null);
 
   const filtered = schedules.filter(s => {
     const matchesSearch = s.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -305,6 +308,13 @@ export default function ScheduleList({ schedules, role, onEdit, onDuplicate, onA
                             >
                               <Share2 className="w-4 h-4" />
                             </button>
+                            <button
+                              onClick={() => setAttachmentSchedule(s)}
+                              className="p-2 text-purple-600 hover:bg-purple-50 rounded transition-colors cursor-pointer"
+                              title="Tài liệu đính kèm"
+                            >
+                              <Paperclip className="w-4 h-4" />
+                            </button>
                             <button 
                               onClick={() => onDuplicate(s)}
                               className="p-2 text-orange-600 hover:bg-orange-50 rounded transition-colors cursor-pointer"
@@ -343,6 +353,17 @@ export default function ScheduleList({ schedules, role, onEdit, onDuplicate, onA
           </table>
         </div>
       </div>
+    </div>
+
+      {/* Attachment Manager Modal */}
+      {attachmentSchedule && (
+        <AttachmentManager
+          scheduleId={attachmentSchedule.id}
+          scheduleTitle={attachmentSchedule.title}
+          role={role}
+          onClose={() => setAttachmentSchedule(null)}
+        />
+      )}
     </div>
   );
 }
