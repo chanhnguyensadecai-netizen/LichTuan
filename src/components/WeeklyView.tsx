@@ -12,9 +12,13 @@ interface WeeklyViewProps {
 }
 
 export default function WeeklyView({ schedules, orgName }: WeeklyViewProps) {
-  const [currentWeekStart, setCurrentWeekStart] = React.useState(
-    startOfWeek(new Date(), { weekStartsOn: 1 })
-  );
+  const thisWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+  const [currentWeekStart, setCurrentWeekStart] = React.useState(thisWeekStart);
+  
+  const weekOffset = Math.round((currentWeekStart.getTime() - thisWeekStart.getTime()) / (7 * 24 * 60 * 60 * 1000));
+  const isCurrentWeek = weekOffset === 0;
+  const isPrevWeek = weekOffset === -1;
+  const isNextWeek = weekOffset === 1;
   const [copied, setCopied] = React.useState(false);
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -180,8 +184,8 @@ export default function WeeklyView({ schedules, orgName }: WeeklyViewProps) {
             <button onClick={prevWeek} className="p-1.5 hover:bg-gray-50 rounded cursor-pointer">
               <ChevronLeft className="w-4 h-4 text-gray-600" />
             </button>
-            <button onClick={resetToCurrent} className="px-3 py-1 text-xs font-bold text-gray-700 hover:text-[#da251d] cursor-pointer uppercase">
-              Hiện tại
+            <button onClick={resetToCurrent} className={`px-3 py-1 text-xs font-bold cursor-pointer uppercase transition-colors ${isCurrentWeek ? 'text-[#da251d]' : 'text-gray-700 hover:text-[#da251d]'}`}>
+              {isCurrentWeek ? 'Hiện tại' : weekOffset < 0 ? `Tuần trước${weekOffset < -1 ? ' (' + weekOffset + ')' : ''}` : `Tuần sau${weekOffset > 1 ? ' (+' + weekOffset + ')' : ''}`}
             </button>
             <button onClick={nextWeek} className="p-1.5 hover:bg-gray-50 rounded cursor-pointer">
               <ChevronRight className="w-4 h-4 text-gray-600" />
