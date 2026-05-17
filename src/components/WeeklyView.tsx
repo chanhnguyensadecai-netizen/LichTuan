@@ -180,25 +180,32 @@ export default function WeeklyView({ schedules, orgName }: WeeklyViewProps) {
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex items-center bg-white border border-gray-200 rounded p-1 shadow-sm">
-            <button onClick={prevWeek} className="p-1.5 hover:bg-gray-50 rounded cursor-pointer">
-              <ChevronLeft className="w-4 h-4 text-gray-600" />
+          {/* Nút điều hướng tuần */}
+          <div className="flex items-center bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+            <button onClick={prevWeek} className="px-3 py-2 hover:bg-[#da251d] hover:text-white text-gray-600 transition-all cursor-pointer group">
+              <ChevronLeft className="w-4 h-4" />
             </button>
-            <button onClick={resetToCurrent} className={`px-3 py-1 text-xs font-bold cursor-pointer uppercase transition-colors ${isCurrentWeek ? 'text-[#da251d]' : 'text-gray-700 hover:text-[#da251d]'}`}>
+            <button onClick={resetToCurrent} className={`px-4 py-2 text-xs font-bold cursor-pointer uppercase tracking-wide transition-all border-x border-gray-200 ${isCurrentWeek ? 'bg-[#da251d] text-white' : 'text-gray-700 hover:bg-[#da251d] hover:text-white'}`}>
               {isCurrentWeek ? 'Hiện tại' : weekOffset < 0 ? `Tuần trước${weekOffset < -1 ? ' (' + weekOffset + ')' : ''}` : `Tuần sau${weekOffset > 1 ? ' (+' + weekOffset + ')' : ''}`}
             </button>
-            <button onClick={nextWeek} className="p-1.5 hover:bg-gray-50 rounded cursor-pointer">
-              <ChevronRight className="w-4 h-4 text-gray-600" />
+            <button onClick={nextWeek} className="px-3 py-2 hover:bg-[#da251d] hover:text-white text-gray-600 transition-all cursor-pointer">
+              <ChevronRight className="w-4 h-4" />
             </button>
           </div>
+
+          {/* Nút Gửi Zalo */}
           <button onClick={handleShareZalo}
-            className={`flex items-center gap-2 px-4 py-2 border rounded text-xs font-bold shadow-sm transition-all cursor-pointer ${
-              copied ? 'bg-green-50 text-green-700 border-green-200' : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer ${
+              copied
+                ? 'bg-green-500 text-white shadow-green-200'
+                : 'bg-blue-500 text-white hover:bg-blue-600 shadow-blue-200'
             }`}>
-            <Share2 className="w-4 h-4" /> {copied ? 'Đã sao chép!' : 'Gửi Zalo'}
+            <Share2 className="w-4 h-4" /> {copied ? '✓ Đã sao chép!' : 'Gửi Zalo'}
           </button>
+
+          {/* Nút Xuất PDF */}
           <button onClick={handlePrint}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 rounded text-xs font-bold shadow-sm hover:bg-gray-200 cursor-pointer">
+            className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-white rounded-xl text-xs font-bold shadow-sm hover:bg-slate-800 transition-all cursor-pointer shadow-slate-200">
             <Printer className="w-4 h-4" /> Xuất PDF
           </button>
         </div>
