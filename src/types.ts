@@ -30,3 +30,15 @@ export interface Schedule {
   updatedAt: string;
   status: 'pending' | 'approved' | 'rejected';
 }
+
+export interface Attachment {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  url: string;
+  storagePath: string;
+  uploadedBy: string;
+  uploadedAt: string;
+  scheduleId: string;
+}
