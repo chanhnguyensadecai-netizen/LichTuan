@@ -73,7 +73,15 @@ service cloud.firestore {
       allow delete: if hasRole(['admin', 'office', 'leader']);
     }
 
-    // Settings
+    // Attachments
+  match /attachments/{attachmentId} {
+    allow read: if isSignedIn();
+    allow create: if hasRole(['admin', 'office', 'leader'])
+                  && isSignedIn();
+    allow delete: if hasRole(['admin', 'office']);
+  }
+
+  // Settings
     match /settings/system_config {
       allow read: if true;
     }
