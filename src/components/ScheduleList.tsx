@@ -1,241 +1,368 @@
-import React, { useState, useEffect } from 'react';
-import { db, auth } from '../lib/firebase';
-import { collection, addDoc, deleteDoc, doc, onSnapshot, query, where } from 'firebase/firestore';
-import { Attachment, UserRole } from '../types';
-import { Link, Trash2, Download, ExternalLink, Plus, X, AlertCircle, Loader2, FileText, Paperclip } from 'lucide-react';
+import React, { useState } from 'react';
+import AttachmentManager from './AttachmentManager';
+import { Schedule, UserRole } from '../types';
+import { 
+  Search, 
+  Filter, 
+  MoreVertical, 
+  Edit2, 
+  Trash2, 
+  Clock, 
+  MapPin, 
+  Users,
+  ChevronDown,
+  Calendar as CalendarIcon,
+  Plus,
+  Copy,
+  CheckCircle,
+  XCircle,
+  FileSpreadsheet,
+  Download,
+   Upload,
+  Loader2,
+  Share2,
+  Paperclip
+} from 'lucide-react';
+import { TYPE_CONFIG, PRIORITY_CONFIG, STATUS_CONFIG } from '../constants';
+import { format, parseISO } from 'date-fns';
+import { vi } from 'date-fns/locale';
+import { deleteDoc, doc, updateDoc, collection, addDoc } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
+import { downloadExcelTemplate, parseExcelFile } from '../lib/excel';
 
-interface AttachmentManagerProps {
-  scheduleId: string;
-  scheduleTitle: string;
+interface ScheduleListProps {
+  schedules: Schedule[];
   role: UserRole;
-  onClose: () => void;
+  onEdit: (schedule: Schedule) => void;
+  onDuplicate: (schedule: Schedule) => void;
+  onAddNew: () => void;
 }
 
-function getFileIcon(name: string) {
-  const ext = name.split('.').pop()?.toLowerCase() || '';
-  if (['jpg','jpeg','png','gif','webp'].includes(ext)) return '🖼️';
-  if (ext === 'pdf') return '📄';
-  if (['doc','docx'].includes(ext)) return '📝';
-  if (['xls','xlsx'].includes(ext)) return '📊';
-  if (['ppt','pptx'].includes(ext)) return '📋';
-  return '📎';
-}
+export default function ScheduleList({ schedules, role, onEdit, onDuplicate, onAddNew }: ScheduleListProps) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [showFilters, setShowFilters] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [attachmentSchedule, setAttachmentSchedule] = useState<Schedule | null>(null);
 
-function extractFileName(url: string, customName: string): string {
-  if (customName) return customName;
-  try {
-    const u = new URL(url);
-    const parts = u.pathname.split('/');
-    return decodeURIComponent(parts[parts.length - 1]) || 'Tài liệu';
-  } catch {
-    return 'Tài liệu';
-  }
-}
+  const filtered = schedules.filter(s => {
+    const matchesSearch = s.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                         s.host.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         s.location.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesType = filterType === 'all' || s.type === filterType;
+    const matchesStatus = filterStatus === 'all' || (s.status || 'pending') === filterStatus;
+    return matchesSearch && matchesType && matchesStatus;
+  });
 
-export default function AttachmentManager({ scheduleId, scheduleTitle, role, onClose }: AttachmentManagerProps) {
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [adding, setAdding] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
-  const [error, setError] = useState('');
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: '', url: '' });
-
-  const canAdd = ['admin', 'office', 'leader'].includes(role);
-  const canDelete = ['admin', 'office'].includes(role);
-
-  useEffect(() => {
-    const q = query(collection(db, 'attachments'), where('scheduleId', '==', scheduleId));
-    const unsub = onSnapshot(q, (snap) => {
-      const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as Attachment));
-      data.sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
-      setAttachments(data);
-      setLoading(false);
-    });
-    return () => unsub();
-  }, [scheduleId]);
-
-  const handleAdd = async () => {
-    if (!form.url.trim()) { setError('Vui lòng nhập link tài liệu'); return; }
-    
-    // Kiểm tra URL hợp lệ
-    try { new URL(form.url); } catch { setError('Link không hợp lệ. Vui lòng kiểm tra lại.'); return; }
-
-    setAdding(true);
-    setError('');
+  const handleStatusChange = async (id: string, newStatus: 'approved' | 'rejected') => {
     try {
-      const name = form.name.trim() || extractFileName(form.url, '');
-      await addDoc(collection(db, 'attachments'), {
-        name,
-        url: form.url.trim(),
-        size: 0,
-        type: 'link',
-        storagePath: '',
-        uploadedBy: auth.currentUser?.displayName || auth.currentUser?.email || 'Người dùng',
-        uploadedAt: new Date().toISOString(),
-        scheduleId,
+      await updateDoc(doc(db, 'schedules', id), {
+        status: newStatus,
+        updatedAt: new Date().toISOString()
       });
-      setForm({ name: '', url: '' });
-      setShowForm(false);
-    } catch {
-      setError('Lỗi khi thêm tài liệu. Vui lòng thử lại.');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `schedules/${id}`);
     }
-    setAdding(false);
   };
 
-  const handleDelete = async (att: Attachment) => {
-    if (!window.confirm(`Xóa tài liệu "${att.name}"?`)) return;
-    setDeleting(att.id);
+  const handleShareZalo = async (s: Schedule) => {
+    const content = `THÔNG BÁO LỊCH CÔNG TÁC\n\n` +
+      `- Thời gian: ${format(parseISO(s.date), 'EEEE, dd/MM/yyyy', { locale: vi })}, ${s.startTime}\n` +
+      `- Nội dung: ${s.title}\n` +
+      `- Địa điểm: ${s.location}\n` +
+      `- Thường trực Đảng ủy: ${s.host}\n` +
+      (s.participants ? `- Thành phần: ${s.participants}\n` : '');
+    
     try {
-      await deleteDoc(doc(db, 'attachments', att.id));
-    } catch {
-      setError('Lỗi khi xóa. Vui lòng thử lại.');
+      await navigator.clipboard.writeText(content);
+      setCopiedId(s.id);
+      setTimeout(() => setCopiedId(null), 3000);
+      window.open('https://chat.zalo.me', '_blank');
+    } catch (err) {
+      alert('Không thể sao chép văn bản. Vui lòng kiểm tra lại quyền truy cập bộ nhớ tạm.');
     }
-    setDeleting(null);
+  };
+
+  const handleDelete = async (id: string) => {
+    alert('Đang thực hiện xóa lịch...');
+    console.log('Attempting to delete schedule with ID:', id);
+    try {
+      await deleteDoc(doc(db, 'schedules', id));
+      console.log('Delete successful for ID:', id);
+    } catch (err: any) {
+      console.error('Delete error for ID:', id, err);
+      alert('Lỗi khi xóa: ' + (err.message || err));
+      handleFirestoreError(err, OperationType.DELETE, `schedules/${id}`);
+    }
+  };
+
+  const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    try {
+      const data = await parseExcelFile(file);
+      const batch = data.map(item => ({
+        ...item,
+        status: (['admin', 'office', 'leader'].includes(role)) ? 'approved' : 'pending',
+        createdBy: auth.currentUser?.uid,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }));
+
+      for (const item of batch) {
+        await addDoc(collection(db, 'schedules'), item);
+      }
+      
+      alert(`Đã nhập thành công ${batch.length} lịch công tác.`);
+    } catch (err: any) {
+      console.error('Import error:', err);
+      alert('Lỗi khi nhập file Excel: ' + (err.message || 'Sai định dạng file.'));
+    } finally {
+      setIsImporting(false);
+      e.target.value = ''; // Reset input
+    }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-bold text-gray-800 tracking-tight uppercase">Danh sách Lịch công tác</h2>
+          <p className="text-xs text-gray-500 font-medium">Hệ thống quản lý dữ liệu tập trung.</p>
+        </div>
 
-        {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-gray-100">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center">
-              <Paperclip className="w-5 h-5 text-purple-600" />
-            </div>
-            <div>
-              <h2 className="font-bold text-gray-800 text-sm uppercase tracking-wide">Tài liệu đính kèm</h2>
-              <p className="text-xs text-gray-500 mt-0.5 truncate max-w-[280px]">{scheduleTitle}</p>
-            </div>
+        <div className="flex items-center gap-3">
+          {['admin', 'office', 'leader'].includes(role) && (
+            <>
+              <div className="flex items-center bg-gray-100 rounded p-1">
+                <button 
+                  onClick={downloadExcelTemplate}
+                  className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-white text-slate-600 rounded text-[10px] font-bold transition-all cursor-pointer whitespace-nowrap"
+                  title="Tải tệp mẫu Excel"
+                >
+                  <Download className="w-3.5 h-3.5" /> Mẫu
+                </button>
+                <div className="w-[1px] h-4 bg-gray-200 mx-1"></div>
+                <label className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-white text-slate-600 rounded text-[10px] font-bold transition-all cursor-pointer whitespace-nowrap">
+                  <input 
+                    type="file" 
+                    accept=".xlsx, .xls" 
+                    className="hidden" 
+                    onChange={handleImportExcel}
+                    disabled={isImporting}
+                  />
+                  {isImporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                  {isImporting ? 'Đang nhập...' : 'Nhập Excel'}
+                </label>
+              </div>
+
+              <button 
+                onClick={onAddNew}
+                className="flex items-center gap-2 px-4 py-2 bg-[#da251d] text-white rounded text-xs font-bold shadow-sm hover:bg-red-800 transition-all cursor-pointer whitespace-nowrap"
+              >
+                <Plus className="w-3.5 h-3.5" /> Thêm lịch mới
+              </button>
+            </>
+          )}
+
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Tìm nội dung, chủ trì..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 pr-4 py-2 bg-white border border-gray-200 rounded text-xs focus:ring-1 focus:ring-[#da251d] outline-none w-full md:w-56 shadow-sm"
+            />
+            <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-gray-400" />
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg cursor-pointer">
-            <X className="w-5 h-5 text-gray-500" />
+          
+          <button 
+            onClick={() => setShowFilters(!showFilters)}
+            className={`p-2 rounded border transition-all cursor-pointer ${showFilters ? 'bg-red-50 border-[#da251d]/20 text-[#da251d]' : 'bg-white border-gray-200 text-gray-600'}`}
+          >
+            <Filter className="w-4 h-4" />
           </button>
         </div>
+      </div>
 
-        {/* Hướng dẫn */}
-        <div className="mx-5 mt-4 p-3 bg-blue-50 rounded-xl text-xs text-blue-700 flex gap-2">
-          <span className="text-base">💡</span>
-          <div>
-            <p className="font-bold mb-0.5">Cách thêm tài liệu từ Google Drive:</p>
-            <p>1. Mở file trên Google Drive → nhấn <strong>Chia sẻ</strong></p>
-            <p>2. Đổi quyền thành <strong>"Bất kỳ ai có link"</strong> → Sao chép link</p>
-            <p>3. Dán link vào ô bên dưới</p>
+      {showFilters && (
+        <div className="bg-white p-4 rounded border border-gray-200 shadow-sm flex flex-wrap gap-4 items-center animate-in fade-in slide-in-from-top-1 transition-all">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Lọc theo:</span>
+            <select 
+              value={filterType} 
+              onChange={(e) => setFilterType(e.target.value)}
+              className="bg-gray-50 border border-gray-200 rounded text-[11px] px-3 py-1.5 outline-none focus:ring-1 focus:ring-[#da251d] font-medium"
+            >
+              <option value="all">Tất cả loại hình</option>
+              <option value="meeting">Hội nghị/Họp</option>
+              <option value="fieldwork">Đi địa bàn</option>
+              <option value="event">Sự kiện</option>
+              <option value="other">Khác</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Trạng thái:</span>
+            <select 
+              value={filterStatus} 
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="bg-gray-50 border border-gray-200 rounded text-[11px] px-3 py-1.5 outline-none focus:ring-1 focus:ring-[#da251d] font-medium"
+            >
+              <option value="all">Tất cả</option>
+              <option value="pending">Chờ duyệt</option>
+              <option value="approved">Đã duyệt</option>
+              <option value="rejected">Từ chối</option>
+            </select>
           </div>
         </div>
+      )}
 
-        {/* Form thêm link */}
-        {canAdd && (
-          <div className="px-5 mt-3">
-            {!showForm ? (
-              <button
-                onClick={() => setShowForm(true)}
-                className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-purple-200 rounded-xl text-purple-600 text-sm font-bold hover:border-purple-400 hover:bg-purple-50 transition-all cursor-pointer"
-              >
-                <Plus className="w-4 h-4" /> Thêm link tài liệu
-              </button>
-            ) : (
-              <div className="border border-purple-200 rounded-xl p-4 space-y-3 bg-purple-50/30">
-                <div>
-                  <label className="text-xs font-bold text-gray-600 uppercase mb-1 block">Tên tài liệu</label>
-                  <input
-                    type="text"
-                    placeholder="VD: Biên bản họp tháng 5"
-                    value={form.name}
-                    onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-300"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-600 uppercase mb-1 block">Link Google Drive *</label>
-                  <input
-                    type="url"
-                    placeholder="https://drive.google.com/file/d/..."
-                    value={form.url}
-                    onChange={e => { setForm(f => ({ ...f, url: e.target.value })); setError(''); }}
-                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-300"
-                  />
-                </div>
-                {error && (
-                  <div className="flex items-center gap-2 text-red-600 text-xs bg-red-50 p-2 rounded-lg">
-                    <AlertCircle className="w-4 h-4 shrink-0" />{error}
-                  </div>
-                )}
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleAdd}
-                    disabled={adding}
-                    className="flex-1 flex items-center justify-center gap-2 py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700 transition-colors cursor-pointer disabled:opacity-50"
-                  >
-                    {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                    {adding ? 'Đang thêm...' : 'Thêm'}
-                  </button>
-                  <button
-                    onClick={() => { setShowForm(false); setForm({ name: '', url: '' }); setError(''); }}
-                    className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-bold text-gray-600 hover:bg-gray-50 cursor-pointer"
-                  >
-                    Hủy
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Danh sách tài liệu */}
-        <div className="flex-1 overflow-y-auto p-5 pt-3">
-          {loading ? (
-            <div className="flex items-center justify-center py-10">
-              <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-            </div>
-          ) : attachments.length === 0 ? (
-            <div className="text-center py-10 text-gray-400">
-              <Paperclip className="w-10 h-10 mx-auto mb-3 opacity-30" />
-              <p className="text-sm font-medium">Chưa có tài liệu nào</p>
-              {canAdd && <p className="text-xs mt-1">Nhấn "Thêm link tài liệu" để đính kèm</p>}
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
-                {attachments.length} tài liệu
-              </p>
-              {attachments.map(att => (
-                <div key={att.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
-                  <span className="text-2xl shrink-0">{getFileIcon(att.name)}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-gray-800 truncate">{att.name}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {att.uploadedBy} • {new Date(att.uploadedAt).toLocaleDateString('vi-VN')}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <a
-                      href={att.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-2 hover:bg-blue-100 rounded-lg text-blue-600 transition-colors"
-                      title="Mở tài liệu"
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                    </a>
-                    {canDelete && (
-                      <button
-                        onClick={() => handleDelete(att)}
-                        disabled={deleting === att.id}
-                        className="p-2 hover:bg-red-100 rounded-lg text-red-500 transition-colors disabled:opacity-50 cursor-pointer"
-                        title="Xóa"
-                      >
-                        {deleting === att.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+      <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-gray-50 text-gray-600 font-bold border-b border-gray-200 uppercase tracking-wider">
+                <th className="px-6 py-3 border-r border-gray-200 w-28">Thời gian</th>
+                <th className="px-6 py-3 border-r border-gray-200">Nội dung công tác</th>
+                <th className="px-6 py-3 border-r border-gray-200 w-48">Địa điểm/Thành phần</th>
+                <th className="px-6 py-3 border-r border-gray-200 w-32">Thường trực Đảng ủy</th>
+                <th className="px-6 py-3 border-r border-gray-200 w-24 text-center">Trạng thái</th>
+                <th className="px-6 py-3 text-right">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {filtered.length > 0 ? (
+                filtered.map((s) => (
+                  <tr key={s.id} className="hover:bg-gray-50 transition-colors group">
+                    <td className="px-6 py-4 border-r border-gray-100">
+                      <div className="flex flex-col">
+                        <span className="font-bold text-[#da251d] capitalize">{format(parseISO(s.date), 'EEEE, dd/MM/yyyy', { locale: vi })}</span>
+                        <span className="text-[10px] text-gray-400 font-medium flex items-center gap-1 mt-0.5 whitespace-nowrap">
+                          <Clock className="w-3 h-3" /> {s.startTime}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 border-r border-gray-100">
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-1.5">
+                           <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${TYPE_CONFIG[s.type].color.replace('rounded-full', 'rounded')}`}>
+                            {TYPE_CONFIG[s.type].label}
+                          </span>
+                        </div>
+                        <p className="font-bold text-gray-800 leading-snug">{s.title}</p>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 border-r border-gray-100 italic text-gray-500">
+                      <div className="space-y-1">
+                        <div className="flex items-baseline gap-1.5">
+                          <MapPin className="w-3 h-3 text-[#da251d] shrink-0" />
+                          <span className="">{s.location}</span>
+                        </div>
+                        {s.participants && (
+                          <div className="flex items-baseline gap-1.5 opacity-70">
+                            <Users className="w-3 h-3 shrink-0" />
+                            <span className="">{s.participants}</span>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 border-r border-gray-100">
+                      <p className="font-bold text-gray-700">{s.host}</p>
+                    </td>
+                    <td className="px-6 py-4 border-r border-gray-100 text-center">
+                      <span className={`text-[9px] px-2 py-1 rounded-full font-bold uppercase border ${STATUS_CONFIG[s.status || 'pending'].color}`}>
+                        {STATUS_CONFIG[s.status || 'pending'].label}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      {['admin', 'office', 'leader'].includes(role) && (
+                        <div className="flex items-center justify-end gap-1.5 transition-opacity">
+                          {(s.status === 'pending' || !s.status) && (
+                            <div className="flex items-center gap-1 mr-2 px-2 py-1 bg-gray-50 rounded-lg border border-gray-100">
+                              <button 
+                                onClick={() => handleStatusChange(s.id, 'approved')}
+                                className="flex items-center gap-1 px-2 py-1 bg-green-600 text-white rounded text-[10px] font-bold hover:bg-green-700 transition-all cursor-pointer shadow-sm"
+                                title="Phê duyệt"
+                              >
+                                <CheckCircle className="w-3 h-3" /> Duyệt
+                              </button>
+                              <button 
+                                onClick={() => handleStatusChange(s.id, 'rejected')}
+                                className="flex items-center gap-1 px-2 py-1 bg-slate-400 text-white rounded text-[10px] font-bold hover:bg-slate-500 transition-all cursor-pointer shadow-sm"
+                                title="Từ chối"
+                              >
+                                <XCircle className="w-3 h-3" /> Từ chối
+                              </button>
+                            </div>
+                          )}
+                          <div className="flex items-center gap-0.5">
+                            <button 
+                              onClick={() => handleShareZalo(s)}
+                              className={`p-2 rounded transition-colors cursor-pointer ${copiedId === s.id ? 'text-green-500 bg-green-50' : 'text-blue-500 hover:bg-blue-50'}`}
+                              title={copiedId === s.id ? "Đã sao chép" : "Gửi Zalo"}
+                            >
+                              <Share2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => setAttachmentSchedule(s)}
+                              className="p-2 text-purple-600 hover:bg-purple-50 rounded transition-colors cursor-pointer"
+                              title="Tài liệu đính kèm"
+                            >
+                              <Paperclip className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => onDuplicate(s)}
+                              className="p-2 text-orange-600 hover:bg-orange-50 rounded transition-colors cursor-pointer"
+                              title="Sao chép"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => onEdit(s)}
+                              className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors cursor-pointer"
+                              title="Sửa"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => handleDelete(s.id)}
+                              className="p-2.5 text-red-600 hover:bg-red-600 hover:text-white rounded-lg transition-all cursor-pointer shadow-sm hover:shadow-md border border-transparent hover:border-red-700"
+                              title="Xóa vĩnh viễn"
+                            >
+                              <Trash2 className="w-4.5 h-4.5" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6} className="px-6 py-16 text-center text-gray-300 font-medium uppercase tracking-widest text-[10px]">
+                    Dữ liệu trống
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
+
+      {/* Attachment Manager Modal */}
+      {attachmentSchedule && (
+        <AttachmentManager
+          scheduleId={attachmentSchedule.id}
+          scheduleTitle={attachmentSchedule.title}
+          role={role}
+          onClose={() => setAttachmentSchedule(null)}
+        />
+      )}
     </div>
   );
 }
