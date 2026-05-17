@@ -45,11 +45,18 @@ export default function AttachmentManager({ scheduleId, scheduleTitle, role, onC
   const canDelete = ['admin', 'office'].includes(role);
 
   useEffect(() => {
+    if (!scheduleId) {
+      setLoading(false);
+      return;
+    }
     const q = query(collection(db, 'attachments'), where('scheduleId', '==', scheduleId));
     const unsub = onSnapshot(q, (snap) => {
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as Attachment));
       data.sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
       setAttachments(data);
+      setLoading(false);
+    }, (err) => {
+      console.error('Attachment error:', err);
       setLoading(false);
     });
     return () => unsub();
