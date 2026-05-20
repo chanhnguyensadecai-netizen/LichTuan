@@ -147,7 +147,7 @@ export default function WeeklyView({ schedules, orgName }: WeeklyViewProps) {
           </td>
         )}
         <td className="border-2 border-black p-2 align-top">
-                  <div>- <span className="font-medium">{s.title}</span></div>
+                  <div>- <span className="font-medium" dangerouslySetInnerHTML={{ __html: s.title }} /></div>
                   {getAttachmentsForSchedule(s.id).length > 0 && (
                     <div className="mt-1.5 flex flex-wrap gap-1">
                       {getAttachmentsForSchedule(s.id).map(att => (
