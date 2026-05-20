@@ -265,6 +265,7 @@ export default function WeeklyView({ schedules, orgName }: WeeklyViewProps) {
               <th className="border-2 border-black p-2 w-[190px] text-center uppercase font-bold">Thời gian, địa điểm</th>
               <th className="border-2 border-black p-2 w-[190px] text-center uppercase font-bold">Thường trực Đảng ủy</th>
               <th className="border-2 border-black p-2 w-[140px] text-center uppercase font-bold">Thành phần</th>
+              <th className="border-2 border-black p-2 w-[130px] text-center uppercase font-bold">Ghi chú</th>
             </tr>
           </thead>
           <tbody>{tableRows}</tbody>
