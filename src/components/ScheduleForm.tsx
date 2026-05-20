@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { db, auth, OperationType, handleFirestoreError } from '../lib/firebase';
 import { collection, addDoc, updateDoc, doc } from 'firebase/firestore';
 import { Schedule, ScheduleType, Priority, UserProfile } from '../types';
@@ -311,16 +311,99 @@ export default function ScheduleForm({ onSuccess, onCancel, initialData, profile
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-2">
-                   Ghi chú
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">
+                  📝 Ghi chú (hỗ trợ định dạng màu)
                 </label>
-                <input
-                  type="text"
+
+                {/* Thanh công cụ màu sắc */}
+                <div className="flex flex-wrap items-center gap-1.5 mb-2 p-2 bg-slate-50 border border-slate-200 rounded-xl">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase mr-1">Màu chữ:</span>
+                  {[
+                    { color: '#000000', label: 'Đen' },
+                    { color: '#da251d', label: 'Đỏ' },
+                    { color: '#1d4ed8', label: 'Xanh dương' },
+                    { color: '#15803d', label: 'Xanh lá' },
+                    { color: '#b45309', label: 'Nâu' },
+                    { color: '#7c3aed', label: 'Tím' },
+                    { color: '#0891b2', label: 'Xanh ngọc' },
+                    { color: '#be185d', label: 'Hồng' },
+                  ].map(({ color, label }) => (
+                    <button
+                      key={color}
+                      type="button"
+                      title={label}
+                      onClick={() => {
+                        const textarea = document.getElementById('notes-input') as HTMLTextAreaElement;
+                        if (!textarea) return;
+                        const start = textarea.selectionStart;
+                        const end = textarea.selectionEnd;
+                        const selected = formData.notes.substring(start, end);
+                        if (selected) {
+                          const newText = formData.notes.substring(0, start) +
+                            `<span style="color:${color}">${selected}</span>` +
+                            formData.notes.substring(end);
+                          setFormData({ ...formData, notes: newText });
+                        } else {
+                          setSelectedColor(color);
+                        }
+                      }}
+                      className={`w-5 h-5 rounded-full border-2 cursor-pointer transition-transform hover:scale-110 ${selectedColor === color ? 'border-slate-600 scale-110' : 'border-white'}`}
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                  <div className="ml-1 flex items-center gap-1">
+                    <input
+                      type="color"
+                      value={selectedColor}
+                      onChange={e => setSelectedColor(e.target.value)}
+                      className="w-5 h-5 rounded cursor-pointer border border-slate-200"
+                      title="Chọn màu tùy chỉnh"
+                    />
+                    <span className="text-[9px] text-slate-400">Tùy chỉnh</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const textarea = document.getElementById('notes-input') as HTMLTextAreaElement;
+                      if (!textarea) return;
+                      const start = textarea.selectionStart;
+                      const end = textarea.selectionEnd;
+                      const selected = formData.notes.substring(start, end);
+                      if (selected) {
+                        const newText = formData.notes.substring(0, start) +
+                          `<strong>${selected}</strong>` +
+                          formData.notes.substring(end);
+                        setFormData({ ...formData, notes: newText });
+                      }
+                    }}
+                    className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-black text-slate-600 hover:bg-slate-100 cursor-pointer ml-1"
+                    title="In đậm"
+                  >B</button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, notes: '' })}
+                    className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] text-red-500 hover:bg-red-50 cursor-pointer"
+                    title="Xóa tất cả"
+                  >Xóa</button>
+                </div>
+
+                {/* Ô nhập ghi chú */}
+                <textarea
+                  id="notes-input"
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-red-500 outline-none text-sm transition-all"
-                  placeholder="Chuẩn bị tài liệu báo cáo..."
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-red-500 outline-none text-sm transition-all font-mono"
+                  placeholder="Nhập ghi chú... Bôi đen chữ rồi chọn màu để tô màu"
+                  rows={3}
                 />
+
+                {/* Xem trước */}
+                {formData.notes && (
+                  <div className="mt-2 p-3 bg-white border border-slate-200 rounded-xl">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Xem trước:</p>
+                    <p className="text-sm" dangerouslySetInnerHTML={{ __html: formData.notes }} />
+                  </div>
+                )}
               </div>
             </div>
           </div>
