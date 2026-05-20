@@ -131,7 +131,7 @@ export default function WeeklyView({ schedules, orgName }: WeeklyViewProps) {
             <div className="day-name capitalize">{dayName}</div>
             <div>{dateStr}</div>
           </td>
-          <td colSpan={4} className="border-2 border-black p-3 text-center text-gray-400 italic text-xs font-bold uppercase tracking-widest">
+          <td colSpan={5} className="border-2 border-black p-3 text-center text-gray-400 italic text-xs font-bold uppercase tracking-widest">
             --- Nghỉ ---
           </td>
         </tr>
@@ -175,6 +175,9 @@ export default function WeeklyView({ schedules, orgName }: WeeklyViewProps) {
         </td>
         <td className="border-2 border-black p-2 align-top text-[11px]">
           {s.participants && `- ${s.participants}`}
+        </td>
+        <td className="border-2 border-black p-2 align-top text-[11px] border-b border-gray-300">
+          {s.notes && <span dangerouslySetInnerHTML={{ __html: s.notes }} />}
         </td>
       </tr>
     ));
