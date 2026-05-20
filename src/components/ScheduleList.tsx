@@ -268,7 +268,7 @@ export default function ScheduleList({ schedules, role, onEdit, onDuplicate, onA
                             {TYPE_CONFIG[s.type].label}
                           </span>
                         </div>
-                        <p className="font-bold text-gray-800 leading-snug">{s.title}</p>
+                        <p className="font-bold text-gray-800 leading-snug" dangerouslySetInnerHTML={{ __html: s.title }} />
                         {getAttachmentsForSchedule(s.id).length > 0 && (
                           <div className="mt-1.5 flex flex-wrap gap-1">
                             {getAttachmentsForSchedule(s.id).map(att => (
