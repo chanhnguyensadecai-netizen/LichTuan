@@ -174,7 +174,9 @@ export default function WeeklyView({ schedules, orgName }: WeeklyViewProps) {
           ))}
         </td>
         <td className="border-2 border-black p-2 align-top text-[11px]">
-          {s.participants && `- ${s.participants}`}
+          {s.participants && s.participants.split(/[;\n]/).filter((p: string) => p.trim()).map((part: string, i: number) => (
+            <div key={i}>- {part.trim()}</div>
+          ))}
         </td>
         <td className="border-2 border-black p-2 align-top text-[11px]">
           {s.notes && <span dangerouslySetInnerHTML={{ __html: s.notes }} />}
