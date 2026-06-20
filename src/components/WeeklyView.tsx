@@ -203,6 +203,7 @@ export default function WeeklyView({ schedules, orgName }: WeeklyViewProps) {
             <th style={{width:'190px'}}>Thời gian, địa điểm</th>
             <th style={{width:'190px'}}>Thường trực Đảng ủy</th>
             <th style={{width:'140px'}}>Thành phần</th>
+            <th style={{width:'130px'}}>Ghi chú</th>
           </tr>
         </thead>
         <tbody>{tableRows}</tbody>
