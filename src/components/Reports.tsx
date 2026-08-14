@@ -29,7 +29,8 @@ export default function Reports({ schedules }: ReportsProps) {
   const filteredSchedules = useMemo(() => {
     return schedules.filter(s => {
       const date = parseISO(s.date);
-      return isWithinInterval(date, { start: dateRange.start, end: dateRange.end });
+      return s.status === 'approved' &&
+             isWithinInterval(date, { start: dateRange.start, end: dateRange.end });
     });
   }, [schedules, dateRange]);
 
