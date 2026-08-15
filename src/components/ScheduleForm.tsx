@@ -149,11 +149,12 @@ export default function ScheduleForm({ onSuccess, onCancel, initialData, profile
           createdAt: new Date().toISOString(),
         });
       }
+      // Đặt loading = false TRƯỚC khi gọi onSuccess để tránh cập nhật state trên component đã đóng
+      setLoading(false);
       onSuccess();
     } catch (err) {
-      handleFirestoreError(err, initialData ? OperationType.UPDATE : OperationType.CREATE, 'schedules');
-    } finally {
       setLoading(false);
+      handleFirestoreError(err, initialData ? OperationType.UPDATE : OperationType.CREATE, 'schedules');
     }
   };
 
