@@ -64,36 +64,16 @@ export default function App() {
             const normalizedEmail = firebaseUser.email?.toLowerCase().trim() || '';
             const isOwner = normalizedEmail === 'chanhnguyensadecai@gmail.com';
 
-            // Luôn kiểm tra xem có pre-auth mới với email này không
-            // để cập nhật quyền nếu admin vừa thay đổi
-            const qPreAuth2 = query(collection(db, 'users'), where('email', '==', normalizedEmail), limit(2));
-            const preAuthSnap2 = await getDocs(qPreAuth2);
-            
-            // Tìm doc pre-auth (không phải doc của chính user này)
-            const preAuthDoc2 = preAuthSnap2.docs.find(d => d.id !== firebaseUser.uid);
-            
-            if (preAuthDoc2) {
-              // Có pre-auth mới → cập nhật quyền theo pre-auth
-              const preAuthData2 = preAuthDoc2.data();
-              const updatedProfile = {
-                ...data,
-                role: isOwner ? 'admin' : preAuthData2.role,
-                fullName: preAuthData2.fullName || data.fullName,
-                position: preAuthData2.position || data.position,
-                lastLogin: new Date().toISOString()
-              };
-              await setDoc(docRef, updatedProfile, { merge: true });
-              // Xóa doc pre-auth
-              try { await deleteDoc(doc(db, 'users', preAuthDoc2.id)); } catch {}
-              userProfile = { id: firebaseUser.uid, ...updatedProfile } as UserProfile;
-            } else if (isOwner && data.role !== 'admin') {
+            if (isOwner && data.role !== 'admin') {
+              // Chỉ sửa nếu tài khoản chủ chưa có quyền admin
               const updatedProfile = { ...data, role: 'admin', position: 'Quản trị viên hệ thống' };
               await setDoc(docRef, updatedProfile, { merge: true });
               userProfile = { id: firebaseUser.uid, ...updatedProfile } as UserProfile;
             } else {
-              // Cập nhật lastLogin
-              await updateDoc(docRef, { lastLogin: new Date().toISOString() });
+              // Dùng ngay profile hiện có - không query thêm
               userProfile = { id: firebaseUser.uid, ...data } as UserProfile;
+              // Cập nhật lastLogin bất đồng bộ - không chặn đăng nhập
+              updateDoc(docRef, { lastLogin: new Date().toISOString() }).catch(() => {});
             }
           } else {
             // Check if there is a pre-authorized account with this email
