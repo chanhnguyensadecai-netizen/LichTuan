@@ -29,8 +29,7 @@ export default function Reports({ schedules }: ReportsProps) {
   const filteredSchedules = useMemo(() => {
     return schedules.filter(s => {
       const date = parseISO(s.date);
-      return s.status === 'approved' &&
-             isWithinInterval(date, { start: dateRange.start, end: dateRange.end });
+      return isWithinInterval(date, { start: dateRange.start, end: dateRange.end });
     });
   }, [schedules, dateRange]);
 
@@ -55,7 +54,13 @@ export default function Reports({ schedules }: ReportsProps) {
   const hostData = useMemo(() => {
     const hosts: Record<string, number> = {};
     filteredSchedules.forEach(s => {
-      if (s.host) hosts[s.host] = (hosts[s.host] || 0) + 1;
+      if (s.host) {
+        // Tách nhiều người chủ trì theo dấu , ; hoặc xuống dòng
+        s.host.split(/[,;\n]/).forEach(h => {
+          const name = h.trim();
+          if (name) hosts[name] = (hosts[name] || 0) + 1;
+        });
+      }
     });
     return Object.entries(hosts)
       .map(([name, value]) => ({ name, value }))
