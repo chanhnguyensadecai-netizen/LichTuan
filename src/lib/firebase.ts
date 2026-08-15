@@ -1,10 +1,18 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { initializeFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '@/firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+// Dùng initializeFirestore + experimentalAutoDetectLongPolling thay vì getFirestore mặc định.
+// Lý do: với gRPC-stream/WebChannel bị một số mạng, proxy, trình duyệt (đặc biệt mobile) chặn/ngắt,
+// các Promise của addDoc/updateDoc có thể không bao giờ resolve dù dữ liệu đã ghi và đồng bộ được
+// (đó là lý do dữ liệu vẫn lưu đúng nhưng nút "Cập nhật" đứng mãi ở trạng thái "Đang lưu...").
+export const db = initializeFirestore(
+  app,
+  { experimentalAutoDetectLongPolling: true },
+  firebaseConfig.firestoreDatabaseId
+);
 export const auth = getAuth(app);
 
 // Test connection
