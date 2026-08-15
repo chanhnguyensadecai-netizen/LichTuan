@@ -376,6 +376,22 @@ export default function ScheduleForm({ onSuccess, onCancel, initialData, profile
 
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-2">
+                  <Bookmark className="w-3.5 h-3.5" /> Loại hình công tác *
+                </label>
+                <select
+                  value={formData.type}
+                  onChange={(e) => setFormData({ ...formData, type: e.target.value as ScheduleType })}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-red-500 outline-none text-sm transition-all cursor-pointer"
+                >
+                  <option value="meeting">Hội nghị/Họp</option>
+                  <option value="fieldwork">Đi địa bàn/Cơ sở</option>
+                  <option value="event">Sự kiện/Lễ kỷ niệm</option>
+                  <option value="other">Công việc khác</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-2">
                   <Users className="w-3.5 h-3.5" /> Thành phần tham dự
                 </label>
                 <input
