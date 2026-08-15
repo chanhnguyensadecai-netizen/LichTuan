@@ -54,13 +54,7 @@ export default function Reports({ schedules }: ReportsProps) {
   const hostData = useMemo(() => {
     const hosts: Record<string, number> = {};
     filteredSchedules.forEach(s => {
-      if (s.host) {
-        // Tách nhiều người chủ trì theo dấu , ; hoặc xuống dòng
-        s.host.split(/[,;\n]/).forEach(h => {
-          const name = h.trim();
-          if (name) hosts[name] = (hosts[name] || 0) + 1;
-        });
-      }
+      if (s.host) hosts[s.host] = (hosts[s.host] || 0) + 1;
     });
     return Object.entries(hosts)
       .map(([name, value]) => ({ name, value }))
@@ -274,11 +268,30 @@ export default function Reports({ schedules }: ReportsProps) {
             </div>
             <div className="h-[280px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={hostData} layout="vertical" margin={{ top: 0, right: 30, left: 80, bottom: 0 }}>
+                <BarChart data={hostData} layout="vertical" margin={{ top: 0, right: 40, left: 160, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} vertical={true} stroke="#f1f5f9" />
                   <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10 }} allowDecimals={false} />
-                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: '#334155', fontSize: 11, fontWeight: 700 }} width={75} />
-                  <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '12px' }} cursor={{ fill: '#f8fafc' }} />
+                  <YAxis
+                    dataKey="name"
+                    type="category"
+                    axisLine={false}
+                    tickLine={false}
+                    width={155}
+                    tick={(props) => {
+                      const { x, y, payload } = props;
+                      const label = payload.value.length > 28 ? payload.value.substring(0, 28) + '…' : payload.value;
+                      return (
+                        <text x={x} y={y} dy={4} textAnchor="end" fill="#334155" fontSize={10} fontWeight={600}>
+                          {label}
+                        </text>
+                      );
+                    }}
+                  />
+                  <Tooltip
+                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '11px', maxWidth: '300px' }}
+                    formatter={(value, name, props) => [value, props.payload.name]}
+                    cursor={{ fill: '#f8fafc' }}
+                  />
                   <Bar dataKey="value" name="Số công tác" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={18} />
                 </BarChart>
               </ResponsiveContainer>
