@@ -51,11 +51,15 @@ export default function ScheduleList({ schedules, role, onEdit, onDuplicate, onA
   const [attachments, setAttachments] = useState<Attachment[]>([]);
 
   useEffect(() => {
-    const q = query(collection(db, 'attachments'));
-    const unsub = onSnapshot(q, (snap) => {
-      setAttachments(snap.docs.map(d => ({ id: d.id, ...d.data() } as Attachment)));
-    });
-    return () => unsub();
+    // Chỉ load attachments khi cần - dùng timeout để không chặn render ban đầu
+    const timer = setTimeout(() => {
+      const q = query(collection(db, 'attachments'));
+      const unsub = onSnapshot(q, (snap) => {
+        setAttachments(snap.docs.map(d => ({ id: d.id, ...d.data() } as Attachment)));
+      });
+      return () => unsub();
+    }, 2000); // Delay 2s sau khi component mount
+    return () => clearTimeout(timer);
   }, []);
 
   const getAttachmentsForSchedule = (scheduleId: string) =>
