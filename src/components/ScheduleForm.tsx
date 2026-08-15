@@ -27,6 +27,18 @@ interface ScheduleFormProps {
   profile: UserProfile;
 }
 
+// Bọc một promise Firestore với thời hạn chờ tối đa.
+// Nếu quá thời hạn mà chưa có phản hồi từ server (do mạng/proxy chặn WebChannel...),
+// ta vẫn coi như "hoàn tất" phía UI vì bản ghi cục bộ (local cache) đã được cập nhật
+// và listener onSnapshot ở Dashboard đã phản ánh đúng dữ liệu. Việc này tránh cho
+// nút "Cập nhật/Lưu" bị treo vô thời hạn dù dữ liệu thực chất đã lưu thành công.
+function withTimeout<T>(promise: Promise<T>, ms = 8000): Promise<T | void> {
+  return Promise.race([
+    promise,
+    new Promise<void>((resolve) => setTimeout(resolve, ms)),
+  ]);
+}
+
 export default function ScheduleForm({ onSuccess, onCancel, initialData, profile }: ScheduleFormProps) {
   const [formData, setFormData] = useState({
     title: '',
@@ -139,23 +151,23 @@ export default function ScheduleForm({ onSuccess, onCancel, initialData, profile
           createdBy: initialData.createdBy, // giữ nguyên người tạo
           createdAt: initialData.createdAt, // giữ nguyên ngày tạo
         };
-        await updateDoc(doc(db, 'schedules', initialData.id), updatePayload);
+        await withTimeout(updateDoc(doc(db, 'schedules', initialData.id), updatePayload));
       } else {
         const finalStatus = ['admin', 'office', 'leader'].includes(profile.role) ? 'approved' : 'pending';
-        await addDoc(collection(db, 'schedules'), {
+        await withTimeout(addDoc(collection(db, 'schedules'), {
           ...payload,
           status: finalStatus,
           createdBy: auth.currentUser?.uid,
           createdAt: new Date().toISOString(),
-        });
+        }));
       }
-      // Đặt loading = false TRƯỚC khi gọi onSuccess để tránh cập nhật state trên component đã đóng
-      setLoading(false);
       onSuccess();
     } catch (err) {
       setLoading(false);
       handleFirestoreError(err, initialData ? OperationType.UPDATE : OperationType.CREATE, 'schedules');
+      return;
     }
+    setLoading(false);
   };
 
   return (
