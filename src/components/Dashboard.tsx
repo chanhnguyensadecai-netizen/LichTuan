@@ -65,14 +65,18 @@ export default function Dashboard({ currentTab, profile, setCurrentTab, settings
         return (
           <ScheduleForm 
             onSuccess={() => {
-              setCurrentTab('schedules');
-              setEditingSchedule(null);
+              // Dùng setTimeout để thoát khỏi chu kỳ async hiện tại
+              // tránh xung đột với AnimatePresence animation
+              setTimeout(() => {
+                setEditingSchedule(null);
+                setCurrentTab('schedules');
+              }, 50);
             }} 
             initialData={editingSchedule || undefined}
             profile={profile}
             onCancel={() => {
-              setCurrentTab('schedules');
               setEditingSchedule(null);
+              setCurrentTab('schedules');
             }}
           />
         );
