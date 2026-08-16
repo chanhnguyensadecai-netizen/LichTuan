@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../lib/firebase';
 import { collection, query, onSnapshot, orderBy, where } from 'firebase/firestore';
 import { Schedule, UserProfile } from '../types';
@@ -24,6 +24,16 @@ interface DashboardProps {
 export default function Dashboard({ currentTab, profile, setCurrentTab, settings }: DashboardProps) {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
+
+  const handleFormSuccess = useCallback(() => {
+    setEditingSchedule(null);
+    setCurrentTab('schedules');
+  }, [setCurrentTab]);
+
+  const handleFormCancel = useCallback(() => {
+    setEditingSchedule(null);
+    setCurrentTab('schedules');
+  }, [setCurrentTab]);
 
   useEffect(() => {
     const q = query(collection(db, 'schedules'), orderBy('date', 'desc'), orderBy('startTime', 'asc'));
@@ -64,20 +74,10 @@ export default function Dashboard({ currentTab, profile, setCurrentTab, settings
         if (!['admin', 'office', 'leader'].includes(profile.role)) return <WeeklyView schedules={schedules} orgName={settings?.orgName} />;
         return (
           <ScheduleForm 
-            onSuccess={() => {
-              // Dùng setTimeout để thoát khỏi chu kỳ async hiện tại
-              // tránh xung đột với AnimatePresence animation
-              setTimeout(() => {
-                setEditingSchedule(null);
-                setCurrentTab('schedules');
-              }, 50);
-            }} 
+            onSuccess={handleFormSuccess}
             initialData={editingSchedule || undefined}
             profile={profile}
-            onCancel={() => {
-              setEditingSchedule(null);
-              setCurrentTab('schedules');
-            }}
+            onCancel={handleFormCancel}
           />
         );
       case 'weekly':
