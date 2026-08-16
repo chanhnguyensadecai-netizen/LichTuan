@@ -29,18 +29,56 @@ interface ScheduleFormProps {
 
 // LƯU Ý: Firestore đã bật persistentLocalCache (xem src/lib/firebase.ts), nghĩa là ngay khi
 // gọi updateDoc/addDoc, dữ liệu được ghi bền vững vào IndexedDB của máy NGAY LẬP TỨC (trước cả
-// khi có phản hồi từ server) và sẽ tự động đồng bộ lên server khi có mạng. Vì vậy KHÔNG cần (và
-// không nên) giả vờ "đã lưu xong" trước khi Promise thực sự resolve nữa - làm vậy chỉ khiến
-// người dùng rời trang trong khi tưởng đã lưu, dễ gây nhầm lẫn nếu có lỗi thực sự (ví dụ mất
-// quyền ghi). Nếu mạng chậm, ta chỉ hiển thị thông báo "đang đồng bộ" chứ không đóng form,
-// nhưng dữ liệu vẫn đã an toàn trên máy kể từ thời điểm gọi lệnh.
-function withSlowNetworkNotice<T>(
+// khi có phản hồi từ server) và sẽ tự động đồng bộ lên server khi có mạng - kể cả khi trang
+// được đóng/tải lại giữa chừng. Nhờ vậy, nếu server phản hồi chậm, ta có thể AN TOÀN cho phép
+// người dùng rời khỏi form sau một khoảng chờ ngắn thay vì bắt họ chờ vô thời hạn hoặc phải tự
+// đóng cửa sổ: dữ liệu đã nằm sẵn trên máy, phần còn lại (gửi lên server) sẽ tiếp tục chạy ngầm.
+//
+// - Nếu Firestore phản hồi (thành công hoặc lỗi) TRƯỚC mốc thời gian `ms`: xử lý bình thường,
+//   trả về { timedOut: false }.
+// - Nếu QUÁ mốc thời gian mà chưa có phản hồi: gọi onSlow() để báo cho người dùng biết, đồng
+//   thời trả về ngay { timedOut: true } để form có thể tự thoát (onSuccess) mà không cần chờ
+//   thêm. Promise gốc vẫn tiếp tục chạy ngầm; nếu sau đó nó thất bại thật sự (ví dụ mất quyền),
+//   lỗi sẽ được ghi lại qua onBackgroundError để không bị "biến mất âm thầm".
+function raceWithSlowNetworkFallback<T>(
   promise: Promise<T>,
   onSlow: () => void,
+  onBackgroundError: (err: unknown) => void,
   ms = 5000
-): Promise<T> {
-  const timer = setTimeout(onSlow, ms);
-  return promise.finally(() => clearTimeout(timer));
+): Promise<{ timedOut: boolean }> {
+  let settled = false;
+
+  promise
+    .then(() => {
+      settled = true;
+    })
+    .catch((err) => {
+      if (settled) {
+        // Đã timeout và form đã thoát trước đó - lỗi này xảy ra ở nền, không còn cách nào
+        // hiển thị trực tiếp trên form nữa nên chỉ ghi lại để không bị mất dấu vết.
+        onBackgroundError(err);
+      }
+    });
+
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        onSlow();
+        resolve({ timedOut: true });
+      }
+    }, ms);
+
+    promise
+      .then(() => {
+        clearTimeout(timer);
+        resolve({ timedOut: false });
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
 }
 
 export default function ScheduleForm({ onSuccess, onCancel, initialData, profile }: ScheduleFormProps) {
@@ -145,12 +183,16 @@ export default function ScheduleForm({ onSuccess, onCancel, initialData, profile
 
     const showSlowNotice = () =>
       setSyncNotice('Mạng đang chậm — dữ liệu đã được lưu an toàn trên máy và đang tiếp tục đồng bộ...');
+    const logBackgroundError = (err: unknown) =>
+      console.error('Đồng bộ nền thất bại sau khi đã rời form:', err);
 
     try {
       const payload = {
         ...formData,
         updatedAt: new Date().toISOString(),
       };
+
+      let writePromise: Promise<unknown>;
 
       if (initialData) {
         // Khi sửa: giữ nguyên status hiện tại, không thay đổi người tạo
@@ -160,22 +202,22 @@ export default function ScheduleForm({ onSuccess, onCancel, initialData, profile
           createdBy: initialData.createdBy, // giữ nguyên người tạo
           createdAt: initialData.createdAt, // giữ nguyên ngày tạo
         };
-        await withSlowNetworkNotice(
-          updateDoc(doc(db, 'schedules', initialData.id), updatePayload),
-          showSlowNotice
-        );
+        writePromise = updateDoc(doc(db, 'schedules', initialData.id), updatePayload);
       } else {
         const finalStatus = ['admin', 'office', 'leader'].includes(profile.role) ? 'approved' : 'pending';
-        await withSlowNetworkNotice(
-          addDoc(collection(db, 'schedules'), {
-            ...payload,
-            status: finalStatus,
-            createdBy: auth.currentUser?.uid,
-            createdAt: new Date().toISOString(),
-          }),
-          showSlowNotice
-        );
+        writePromise = addDoc(collection(db, 'schedules'), {
+          ...payload,
+          status: finalStatus,
+          createdBy: auth.currentUser?.uid,
+          createdAt: new Date().toISOString(),
+        });
       }
+
+      // Chờ tối đa 5s: nếu Firestore phản hồi trước đó thì xử lý bình thường; nếu quá 5s,
+      // dữ liệu vẫn đã an toàn trên máy (persistentLocalCache) nên ta chủ động rời form luôn,
+      // không bắt người dùng chờ hoặc phải tự đóng cửa sổ. Việc đồng bộ lên server tiếp tục
+      // chạy ngầm ở phía sau.
+      await raceWithSlowNetworkFallback(writePromise, showSlowNotice, logBackgroundError);
       onSuccess();
     } catch (err) {
       setLoading(false);
