@@ -27,16 +27,20 @@ interface ScheduleFormProps {
   profile: UserProfile;
 }
 
-// Bọc một promise Firestore với thời hạn chờ tối đa.
-// Nếu quá thời hạn mà chưa có phản hồi từ server (do mạng/proxy chặn WebChannel...),
-// ta vẫn coi như "hoàn tất" phía UI vì bản ghi cục bộ (local cache) đã được cập nhật
-// và listener onSnapshot ở Dashboard đã phản ánh đúng dữ liệu. Việc này tránh cho
-// nút "Cập nhật/Lưu" bị treo vô thời hạn dù dữ liệu thực chất đã lưu thành công.
-function withTimeout<T>(promise: Promise<T>, ms = 8000): Promise<T | void> {
-  return Promise.race([
-    promise,
-    new Promise<void>((resolve) => setTimeout(resolve, ms)),
-  ]);
+// LƯU Ý: Firestore đã bật persistentLocalCache (xem src/lib/firebase.ts), nghĩa là ngay khi
+// gọi updateDoc/addDoc, dữ liệu được ghi bền vững vào IndexedDB của máy NGAY LẬP TỨC (trước cả
+// khi có phản hồi từ server) và sẽ tự động đồng bộ lên server khi có mạng. Vì vậy KHÔNG cần (và
+// không nên) giả vờ "đã lưu xong" trước khi Promise thực sự resolve nữa - làm vậy chỉ khiến
+// người dùng rời trang trong khi tưởng đã lưu, dễ gây nhầm lẫn nếu có lỗi thực sự (ví dụ mất
+// quyền ghi). Nếu mạng chậm, ta chỉ hiển thị thông báo "đang đồng bộ" chứ không đóng form,
+// nhưng dữ liệu vẫn đã an toàn trên máy kể từ thời điểm gọi lệnh.
+function withSlowNetworkNotice<T>(
+  promise: Promise<T>,
+  onSlow: () => void,
+  ms = 5000
+): Promise<T> {
+  const timer = setTimeout(onSlow, ms);
+  return promise.finally(() => clearTimeout(timer));
 }
 
 export default function ScheduleForm({ onSuccess, onCancel, initialData, profile }: ScheduleFormProps) {
@@ -56,6 +60,7 @@ export default function ScheduleForm({ onSuccess, onCancel, initialData, profile
   });
 
   const [loading, setLoading] = useState(false);
+  const [syncNotice, setSyncNotice] = useState('');
   const [error, setError] = useState('');
   const [aiText, setAiText] = useState('');
   const [isAiParsing, setIsAiParsing] = useState(false);
@@ -136,6 +141,10 @@ export default function ScheduleForm({ onSuccess, onCancel, initialData, profile
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setSyncNotice('');
+
+    const showSlowNotice = () =>
+      setSyncNotice('Mạng đang chậm — dữ liệu đã được lưu an toàn trên máy và đang tiếp tục đồng bộ...');
 
     try {
       const payload = {
@@ -151,23 +160,31 @@ export default function ScheduleForm({ onSuccess, onCancel, initialData, profile
           createdBy: initialData.createdBy, // giữ nguyên người tạo
           createdAt: initialData.createdAt, // giữ nguyên ngày tạo
         };
-        await withTimeout(updateDoc(doc(db, 'schedules', initialData.id), updatePayload));
+        await withSlowNetworkNotice(
+          updateDoc(doc(db, 'schedules', initialData.id), updatePayload),
+          showSlowNotice
+        );
       } else {
         const finalStatus = ['admin', 'office', 'leader'].includes(profile.role) ? 'approved' : 'pending';
-        await withTimeout(addDoc(collection(db, 'schedules'), {
-          ...payload,
-          status: finalStatus,
-          createdBy: auth.currentUser?.uid,
-          createdAt: new Date().toISOString(),
-        }));
+        await withSlowNetworkNotice(
+          addDoc(collection(db, 'schedules'), {
+            ...payload,
+            status: finalStatus,
+            createdBy: auth.currentUser?.uid,
+            createdAt: new Date().toISOString(),
+          }),
+          showSlowNotice
+        );
       }
       onSuccess();
     } catch (err) {
       setLoading(false);
+      setSyncNotice('');
       handleFirestoreError(err, initialData ? OperationType.UPDATE : OperationType.CREATE, 'schedules');
       return;
     }
     setLoading(false);
+    setSyncNotice('');
   };
 
   return (
@@ -430,6 +447,13 @@ export default function ScheduleForm({ onSuccess, onCancel, initialData, profile
               </div>
             </div>
           </div>
+
+          {syncNotice && (
+            <div className="mt-6 flex items-center gap-2 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+              <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+              {syncNotice}
+            </div>
+          )}
 
           <div className="mt-10 flex items-center justify-end gap-3 pt-6 border-t border-slate-100">
              <button
