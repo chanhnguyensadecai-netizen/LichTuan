@@ -194,17 +194,34 @@ export default function ScheduleForm({ onSuccess, onCancel, initialData, profile
 
       let writePromise: Promise<unknown>;
 
-      if (initialData) {
-        // Khi sửa: giữ nguyên status hiện tại, không thay đổi người tạo
+      // admin/office/leader thêm hoặc sửa lịch thì tự động chuyển sang "đã duyệt" luôn,
+      // không cần bước duyệt thủ công riêng. Các vai trò khác (nếu sau này được phép sửa)
+      // vẫn giữ lịch ở trạng thái chờ duyệt như cũ.
+      const isElevated = ['admin', 'office', 'leader'].includes(profile.role);
+
+      // Lưu ý: khi "Nhân bản" một lịch (xem Dashboard.tsx -> handleDuplicate), initialData
+      // được truyền vào KHÔNG có trường "id" (đã bị lược bỏ chủ ý để tạo bản ghi mới). Vì vậy
+      // phải kiểm tra initialData?.id cụ thể để biết đây là SỬA hay THÊM MỚI - nếu chỉ kiểm
+      // tra "initialData" chung chung sẽ nhầm sang nhánh "sửa" và cố update một document với
+      // id rỗng, gây lỗi khi lưu.
+      const isEditing = Boolean(initialData?.id);
+
+      if (isEditing && initialData) {
+        // Khi sửa: nếu người sửa có quyền duyệt (admin/office/leader) thì tự động chuyển
+        // sang "đã duyệt" - QUAN TRỌNG: nếu không làm vậy, lịch có status khác 'approved'
+        // (ví dụ đang 'pending') sẽ KHÔNG hiển thị ở màn "Lịch công tác tuần" (WeeklyView) -
+        // đây chính là màn mặc định mà hầu hết tài khoản không phải admin/office/leader nhìn
+        // thấy, nên trước đây các tài khoản đó không thấy nội dung vừa thêm/sửa dù đã lưu
+        // thành công. Nếu người sửa không có quyền duyệt, giữ nguyên trạng thái cũ.
         const updatePayload = {
           ...payload,
-          status: initialData.status, // giữ nguyên trạng thái
+          status: isElevated ? 'approved' : initialData.status,
           createdBy: initialData.createdBy, // giữ nguyên người tạo
           createdAt: initialData.createdAt, // giữ nguyên ngày tạo
         };
         writePromise = updateDoc(doc(db, 'schedules', initialData.id), updatePayload);
       } else {
-        const finalStatus = ['admin', 'office', 'leader'].includes(profile.role) ? 'approved' : 'pending';
+        const finalStatus = isElevated ? 'approved' : 'pending';
         writePromise = addDoc(collection(db, 'schedules'), {
           ...payload,
           status: finalStatus,
