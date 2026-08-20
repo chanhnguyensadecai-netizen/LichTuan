@@ -42,7 +42,7 @@ export default function AttachmentManager({ scheduleId, scheduleTitle, role, onC
   const [form, setForm] = useState({ name: '', url: '' });
 
   const canAdd = ['admin', 'office', 'leader'].includes(role);
-  const canDelete = ['admin', 'office'].includes(role);
+  const canDelete = ['admin', 'office', 'leader'].includes(role);
 
   useEffect(() => {
     if (!scheduleId) {
